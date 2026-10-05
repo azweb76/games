@@ -24,7 +24,6 @@ import {
 import { pieceFigureHtml } from "./piece3d.ts";
 import {
   detectMotion,
-  motionDurationMs,
   walkWaypoints,
   type MotionEvent,
 } from "./motion.ts";
@@ -40,7 +39,8 @@ function hpBar(piece: Piece): string {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  const duration = Number.isFinite(ms) ? Math.max(0, ms) : 800;
+  return new Promise((resolve) => setTimeout(resolve, duration));
 }
 
 function squareBox(root: HTMLElement, square: Square): { x: number; y: number; w: number; h: number } {
@@ -75,63 +75,103 @@ function layoutActors(root: HTMLElement): void {
   });
 }
 
-async function moveActor(root: HTMLElement, el: HTMLElement, from: Square, to: Square, type: PieceType): Promise<void> {
-  const points = walkWaypoints(type, from, to);
-  let current = from;
-  placeActor(root, el, current);
-  void el.getBoundingClientRect();
-  for (const point of points) {
-    const ms = Math.max(520, motionDurationMs(current, point));
-    const start = squareBox(root, current);
-    const end = squareBox(root, point);
-    const animation = el.animate(
-      [
-        { left: `${start.x}px`, top: `${start.y}px` },
-        { left: `${end.x}px`, top: `${end.y}px` },
-      ],
-      { duration: ms, easing: "linear", fill: "forwards" },
-    );
-    await Promise.all([animation.finished.catch(() => undefined), sleep(ms)]);
-    placeActor(root, el, point);
-    current = point;
+async function flyPiece(root: HTMLElement, state: GameState, event: Extract<MotionEvent, { type: "walk" }>): Promise<void> {
+  const fromBtn = root.querySelector<HTMLElement>(`.sq[data-file="${event.from.file}"][data-rank="${event.from.rank}"]`);
+  const toBtn = root.querySelector<HTMLElement>(`.sq[data-file="${event.to.file}"][data-rank="${event.to.rank}"]`);
+  const piece = state.pieces[event.pieceId];
+  if (!fromBtn || !toBtn || !piece) {
+    await sleep(900);
+    return;
   }
+  const start = fromBtn.getBoundingClientRect();
+  const end = toBtn.getBoundingClientRect();
+  root.querySelectorAll<HTMLElement>(`[data-actor="${event.pieceId}"]`).forEach((node) => {
+    node.style.visibility = "hidden";
+  });
+  const flyer = document.createElement("div");
+  flyer.className = "actor flyer walking-fly";
+  flyer.style.position = "fixed";
+  flyer.style.left = `${start.left}px`;
+  flyer.style.top = `${start.top}px`;
+  flyer.style.width = `${start.width}px`;
+  flyer.style.height = `${start.height}px`;
+  flyer.style.zIndex = "9999";
+  flyer.style.pointerEvents = "none";
+  flyer.style.outline = "none";
+  flyer.innerHTML = pieceFigureHtml(piece, { hp: hpBar(piece) });
+  const fig = flyer.querySelector(".fig3d");
+  fig?.classList.add("walking");
+  document.body.append(flyer);
+  void flyer.offsetWidth;
+  const dist = Math.max(1, Math.abs(event.to.file - event.from.file) + Math.abs(event.to.rank - event.from.rank));
+  const ms = Math.min(1200, 420 + dist * 220);
+  flyer.style.transition = `left ${ms}ms linear, top ${ms}ms linear`;
+  flyer.style.left = `${end.left}px`;
+  flyer.style.top = `${end.top}px`;
+  await sleep(ms);
+  fig?.classList.remove("walking");
+  flyer.remove();
+}
+
+async function strikeFlyer(root: HTMLElement, state: GameState, event: Extract<MotionEvent, { type: "attack" }>): Promise<void> {
+  const piece = state.pieces[event.actorId];
+  const square =
+    state.combat && event.actorId === state.combat.attackerId ? state.combat.to : findPieceButton(root, event.actorId);
+  const btn =
+    square && "file" in square
+      ? root.querySelector<HTMLElement>(`.sq[data-file="${square.file}"][data-rank="${square.rank}"]`)
+      : square;
+  const foeId = event.foeId;
+  const foeBtn = (() => {
+    const foe = root.querySelector<HTMLElement>(`[data-actor="${foeId}"]`);
+    if (state.combat && foeId === state.combat.defenderId) {
+      return root.querySelector<HTMLElement>(`.sq[data-file="${state.combat.to.file}"][data-rank="${state.combat.to.rank}"]`);
+    }
+    return foe;
+  })();
+  const target = (btn instanceof HTMLElement ? btn : null) ?? foeBtn;
+  if (!piece || !target) {
+    await sleep(560);
+    return;
+  }
+  const box = target.getBoundingClientRect();
+  const flyer = document.createElement("div");
+  flyer.className = "actor flyer";
+  flyer.style.position = "fixed";
+  flyer.style.left = `${box.left}px`;
+  flyer.style.top = `${box.top}px`;
+  flyer.style.width = `${box.width}px`;
+  flyer.style.height = `${box.height}px`;
+  flyer.style.zIndex = "9999";
+  flyer.style.pointerEvents = "none";
+  flyer.innerHTML = pieceFigureHtml(piece, { hp: hpBar(piece) });
+  const fig = flyer.querySelector(".fig3d");
+  fig?.classList.add(event.style === "spell" ? "casting" : "striking");
+  document.body.append(flyer);
+  await sleep(560);
+  flyer.remove();
+}
+
+function findPieceButton(root: HTMLElement, pieceId: string): HTMLElement | null {
+  const actor = root.querySelector<HTMLElement>(`[data-actor="${pieceId}"]`);
+  if (!actor) return null;
+  const file = Number(actor.dataset.file);
+  const rank = Number(actor.dataset.rank);
+  if (!Number.isFinite(file) || !Number.isFinite(rank)) return actor;
+  return root.querySelector<HTMLElement>(`.sq[data-file="${file}"][data-rank="${rank}"]`);
 }
 
 async function playMotion(root: HTMLElement, state: GameState, events: MotionEvent[]): Promise<void> {
-  const layer = root.querySelector<HTMLElement>(".piece-layer");
-  if (!layer) return;
   for (const event of events) {
     if (event.type === "walk") {
-      let actor =
-        layer.querySelector<HTMLElement>(`[data-actor="${event.pieceId}"]`) ??
-        layer.querySelector<HTMLElement>(`[data-file="${event.from.file}"][data-rank="${event.from.rank}"]`);
-      if (!actor) {
-        const piece = state.pieces[event.pieceId];
-        actor = document.createElement("div");
-        actor.className = "actor busy";
-        actor.dataset.actor = event.pieceId;
-        actor.innerHTML = piece
-          ? pieceFigureHtml(piece, { hp: hpBar(piece) })
-          : pieceFigureHtml({ id: event.pieceId, type: event.pieceType, color: "white" });
-        layer.append(actor);
-        placeActor(root, actor, event.from);
+      const hops = event.pieceType === "knight" ? walkWaypoints(event.pieceType, event.from, event.to) : [event.to];
+      let current = event.from;
+      for (const point of hops) {
+        await flyPiece(root, state, { ...event, from: current, to: point });
+        current = point;
       }
-      const fig = actor.querySelector(".fig3d");
-      actor.classList.add("busy");
-      fig?.classList.add("walking");
-      await moveActor(root, actor, event.from, event.to, event.pieceType);
-      fig?.classList.remove("walking");
-      actor.classList.remove("busy");
     } else {
-      const actor = layer.querySelector<HTMLElement>(`[data-actor="${event.actorId}"]`);
-      const foe = layer.querySelector<HTMLElement>(`[data-actor="${event.foeId}"]`);
-      const fig = actor?.querySelector(".fig3d");
-      const foeFig = foe?.querySelector(".fig3d");
-      fig?.classList.add(event.style === "spell" ? "casting" : "striking");
-      foeFig?.classList.add("struck");
-      await sleep(560);
-      fig?.classList.remove("casting", "striking");
-      foeFig?.classList.remove("struck");
+      await strikeFlyer(root, state, event);
     }
   }
 }
@@ -426,14 +466,14 @@ export function chessUi(root: HTMLElement): () => void {
   const apply = async (next: GameState): Promise<void> => {
     if (!state || locked) return;
     const motions = detectMotion(state, next);
+    const walks = motions.filter((event) => event.type === "walk");
+    const attacks = motions.filter((event) => event.type === "attack");
     if (motions.length > 0) {
       locked = true;
       const banner = root.querySelector(".turn-banner");
       if (banner) banner.textContent = "Walking the board…";
-      const intro = motions.filter((event) => event.type === "walk");
-      const attacks = motions.filter((event) => event.type === "attack");
-      if (intro.length && next.combat && !state.combat) {
-        await playMotion(root, state, intro);
+      if (walks.length && next.combat && !state.combat) {
+        await playMotion(root, state, walks);
         if (banner) banner.textContent = "Attacking…";
         await playMotion(root, state, attacks);
       } else {
@@ -441,10 +481,7 @@ export function chessUi(root: HTMLElement): () => void {
       }
       locked = false;
     }
-    state = {
-      ...next,
-      log: [...next.log, motions.length ? `anim ${motions.map((event) => event.type).join("+")}` : "anim none"],
-    };
+    state = next;
     render();
   };
 
