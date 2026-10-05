@@ -79,13 +79,15 @@ button.ghost { background: transparent; }
   text-transform: capitalize;
 }
 .turn-banner.over { color: var(--gold); }
+.board-wrap { grid-area: board; }
+.stage { width: min(92vw, 640px); overflow: visible; padding-top: 1.8rem; }
 .board {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  width: min(92vw, 640px);
+  width: 100%;
   aspect-ratio: 1;
   border: 8px solid #2a1c12;
-  box-shadow: 0 20px 50px #0008;
+  box-shadow: 0 28px 40px #0009, 0 8px 0 #1a1008;
 }
 .sq {
   position: relative;
@@ -106,7 +108,7 @@ button.ghost { background: transparent; }
   background: #1f6f4a99;
   position: absolute;
 }
-.sq.legal:has(.glyph)::after {
+.sq.legal.capture::after {
   width: 72%;
   height: 72%;
   background: transparent;
@@ -149,6 +151,11 @@ button.ghost { background: transparent; }
   padding: 1rem;
   z-index: 20;
 }
+.combat-dock {
+  margin-top: 0.8rem;
+  width: min(92vw, 640px);
+}
+.combat-dock .fighters { margin: 0.4rem 0; }
 .modal-card { width: min(640px, 100%); }
 .fighters { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.6rem; align-items: center; }
 .fighter { text-align: center; padding: 0.6rem; border: 1px solid #3d2f22; border-radius: 8px; background: #2a1c12; }
