@@ -98,34 +98,40 @@ async function moveActor(root: HTMLElement, el: HTMLElement, from: Square, to: S
 }
 
 async function playMotion(root: HTMLElement, state: GameState, events: MotionEvent[]): Promise<void> {
-  const layer = root.querySelector(".piece-layer");
+  const layer = root.querySelector<HTMLElement>(".piece-layer");
   if (!layer) return;
   for (const event of events) {
     if (event.type === "walk") {
-      const actor =
+      let actor =
         layer.querySelector<HTMLElement>(`[data-actor="${event.pieceId}"]`) ??
         layer.querySelector<HTMLElement>(`[data-file="${event.from.file}"][data-rank="${event.from.rank}"]`);
-      const fig = actor?.querySelector(".fig3d");
-      if (!actor || !fig) continue;
+      if (!actor) {
+        const piece = state.pieces[event.pieceId];
+        actor = document.createElement("div");
+        actor.className = "actor busy";
+        actor.dataset.actor = event.pieceId;
+        actor.innerHTML = piece
+          ? pieceFigureHtml(piece, { hp: hpBar(piece) })
+          : pieceFigureHtml({ id: event.pieceId, type: event.pieceType, color: "white" });
+        layer.append(actor);
+        placeActor(root, actor, event.from);
+      }
+      const fig = actor.querySelector(".fig3d");
       actor.classList.add("busy");
-      fig.classList.add("walking");
+      fig?.classList.add("walking");
       await moveActor(root, actor, event.from, event.to, event.pieceType);
-      fig.classList.remove("walking");
+      fig?.classList.remove("walking");
       actor.classList.remove("busy");
     } else {
       const actor = layer.querySelector<HTMLElement>(`[data-actor="${event.actorId}"]`);
       const foe = layer.querySelector<HTMLElement>(`[data-actor="${event.foeId}"]`);
       const fig = actor?.querySelector(".fig3d");
       const foeFig = foe?.querySelector(".fig3d");
-      if (fig) {
-        actor?.classList.add("busy");
-        fig.classList.add(event.style === "spell" ? "casting" : "striking");
-        foeFig?.classList.add("struck");
-        await sleep(520);
-        fig.classList.remove("casting", "striking");
-        foeFig?.classList.remove("struck");
-        actor?.classList.remove("busy");
-      }
+      fig?.classList.add(event.style === "spell" ? "casting" : "striking");
+      foeFig?.classList.add("struck");
+      await sleep(560);
+      fig?.classList.remove("casting", "striking");
+      foeFig?.classList.remove("struck");
     }
   }
 }
@@ -422,10 +428,13 @@ export function chessUi(root: HTMLElement): () => void {
     const motions = detectMotion(state, next);
     if (motions.length > 0) {
       locked = true;
+      const banner = root.querySelector(".turn-banner");
+      if (banner) banner.textContent = "Walking the board…";
       const intro = motions.filter((event) => event.type === "walk");
       const attacks = motions.filter((event) => event.type === "attack");
       if (intro.length && next.combat && !state.combat) {
         await playMotion(root, state, intro);
+        if (banner) banner.textContent = "Attacking…";
         await playMotion(root, state, attacks);
       } else {
         await playMotion(root, state, motions);
