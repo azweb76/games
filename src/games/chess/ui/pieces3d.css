@@ -107,14 +107,32 @@
 
 .clash-burst {
   position: fixed;
-  width: 90px;
-  height: 90px;
-  margin: -45px 0 0 -45px;
+  width: 140px;
+  height: 140px;
+  margin: -70px 0 0 -70px;
   border-radius: 50%;
   pointer-events: none;
   z-index: 10000;
-  background: radial-gradient(circle, #fff8e0 0%, #ffb347 28%, #c23b3b00 70%);
-  animation: impact-burst 0.55s ease-out forwards;
+  background: radial-gradient(circle, #fff8e0 0%, #ffb347 24%, #c23b3b66 55%, #c23b3b00 72%);
+  animation: impact-burst 1.1s ease-out forwards;
+}
+.clash-label {
+  position: fixed;
+  transform: translate(-50%, -120%);
+  z-index: 10001;
+  pointer-events: none;
+  font-family: Georgia, serif;
+  font-size: 1.6rem;
+  letter-spacing: 0.18em;
+  color: #ffe7a8;
+  text-shadow: 0 2px 0 #5a1a10, 0 0 18px #c23b3b;
+  animation: clash-pop 1.4s ease-out forwards;
+}
+@keyframes clash-pop {
+  0% { opacity: 0; transform: translate(-50%, -80%) scale(0.6); }
+  20% { opacity: 1; transform: translate(-50%, -130%) scale(1.15); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -160%) scale(1); }
 }
 
 @keyframes walk-bob {

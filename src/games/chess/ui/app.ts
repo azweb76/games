@@ -116,7 +116,7 @@ function mountFlyer(
   extras: { left?: number; top?: number; scale?: number } = {},
 ): HTMLDivElement {
   const flyer = document.createElement("div");
-  const scale = extras.scale ?? 1.35;
+  const scale = extras.scale ?? 1.7;
   const width = box.width * scale;
   const height = box.height * scale;
   flyer.className = "actor flyer";
@@ -160,20 +160,29 @@ async function strikeFlyer(root: HTMLElement, state: GameState, event: Extract<M
   const defender = mountFlyer(foe, dest);
   attacker.querySelector(".fig3d")?.classList.add(event.style === "spell" ? "casting" : "striking");
   void attacker.offsetWidth;
-  attacker.style.transition = "left 280ms ease-in, top 280ms ease-in";
-  attacker.style.left = `${dest.left - dest.width * 0.1}px`;
-  attacker.style.top = `${dest.top - dest.height * 0.35}px`;
-  await sleep(280);
+  attacker.style.transition = "left 480ms ease-in, top 480ms ease-in";
+  attacker.style.left = `${dest.left - dest.width * 0.08}px`;
+  attacker.style.top = `${dest.top - dest.height * 0.45}px`;
+  await sleep(480);
   defender.querySelector(".fig3d")?.classList.add("struck");
   const burst = document.createElement("div");
   burst.className = "clash-burst";
   burst.style.left = `${dest.left + dest.width / 2}px`;
   burst.style.top = `${dest.top + dest.height / 2}px`;
-  document.body.append(burst);
+  const label = document.createElement("div");
+  label.className = "clash-label";
+  label.textContent = event.style === "spell" ? "MAGIC!" : "CLASH!";
+  label.style.left = `${dest.left + dest.width / 2}px`;
+  label.style.top = `${dest.top}px`;
+  document.body.append(burst, label);
   const banner = root.querySelector(".turn-banner");
   if (banner) banner.textContent = event.style === "spell" ? "Magic erupts!" : "They clash!";
-  await sleep(820);
+  root.querySelectorAll(".fighter .fig3d").forEach((fig, index) => {
+    fig.classList.add(index === 0 ? (event.style === "spell" ? "casting" : "striking") : "struck");
+  });
+  await sleep(1400);
   burst.remove();
+  label.remove();
   attacker.remove();
   defender.remove();
 }
