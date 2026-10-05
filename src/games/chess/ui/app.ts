@@ -518,13 +518,13 @@ export function chessUi(root: HTMLElement): () => void {
     if (motions.length > 0) {
       locked = true;
       const banner = root.querySelector(".turn-banner");
-      if (banner) banner.textContent = "Walking the board…";
-      if (walks.length && next.combat && !state.combat) {
+      if (walks.length) {
+        if (banner) banner.textContent = "Walking the board…";
         await playMotion(root, state, walks);
+      }
+      if (attacks.length) {
         if (banner) banner.textContent = "They clash!";
-        await playMotion(root, state, attacks);
-      } else {
-        await playMotion(root, state, motions);
+        await playMotion(root, next, attacks);
       }
       locked = false;
     }
