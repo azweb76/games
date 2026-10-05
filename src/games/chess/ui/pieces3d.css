@@ -29,11 +29,14 @@
 }
 .actor {
   position: absolute;
+  left: 0;
+  top: 0;
   width: 12.5%;
   height: 12.5%;
   display: grid;
   place-items: end center;
   transform-style: preserve-3d;
+  will-change: transform;
 }
 .actor.busy {
   z-index: 40 !important;
@@ -294,8 +297,3 @@
   100% { opacity: 0; transform: scale(1.6); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .fig-stand, .fig3d.walking .fig-stand, .fig3d.striking .fig-stand, .fig3d.casting .fig-stand {
-    animation: none;
-  }
-}

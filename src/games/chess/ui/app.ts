@@ -25,8 +25,6 @@ import { pieceFigureHtml } from "./piece3d.ts";
 import {
   detectMotion,
   motionDurationMs,
-  reducedMotion,
-  squareOffset,
   walkWaypoints,
   type MotionEvent,
 } from "./motion.ts";
@@ -46,9 +44,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function placeActor(el: HTMLElement, square: Square): void {
-  const offset = squareOffset(square);
-  el.style.left = `${offset.x}%`;
-  el.style.top = `${offset.y}%`;
+  el.style.transform = `translate(${square.file * 100}%, ${(7 - square.rank) * 100}%)`;
   el.style.zIndex = String(12 + (7 - square.rank));
 }
 
@@ -58,16 +54,14 @@ async function moveActor(el: HTMLElement, from: Square, to: Square, type: PieceT
   placeActor(el, current);
   void el.getBoundingClientRect();
   for (const point of points) {
-    const ms = reducedMotion() ? 1 : motionDurationMs(current, point);
-    const start = squareOffset(current);
-    const end = squareOffset(point);
+    const ms = Math.max(420, motionDurationMs(current, point));
     await el.animate(
       [
-        { left: `${start.x}%`, top: `${start.y}%` },
-        { left: `${end.x}%`, top: `${end.y}%` },
+        { transform: `translate(${current.file * 100}%, ${(7 - current.rank) * 100}%)` },
+        { transform: `translate(${point.file * 100}%, ${(7 - point.rank) * 100}%)` },
       ],
       { duration: ms, easing: "linear", fill: "forwards" },
-    ).finished;
+    ).finished.catch(() => sleep(ms));
     placeActor(el, point);
     current = point;
   }
@@ -78,7 +72,9 @@ async function playMotion(root: HTMLElement, state: GameState, events: MotionEve
   if (!layer) return;
   for (const event of events) {
     if (event.type === "walk") {
-      const actor = layer.querySelector<HTMLElement>(`[data-actor="${event.pieceId}"]`);
+      const actor =
+        layer.querySelector<HTMLElement>(`[data-actor="${event.pieceId}"]`) ??
+        layer.querySelector<HTMLElement>(`[data-file="${event.from.file}"][data-rank="${event.from.rank}"]`);
       const fig = actor?.querySelector(".fig3d");
       if (!actor || !fig) continue;
       actor.classList.add("busy");
@@ -95,7 +91,7 @@ async function playMotion(root: HTMLElement, state: GameState, events: MotionEve
         actor?.classList.add("busy");
         fig.classList.add(event.style === "spell" ? "casting" : "striking");
         foeFig?.classList.add("struck");
-        await sleep(reducedMotion() ? 1 : 520);
+        await sleep(520);
         fig.classList.remove("casting", "striking");
         foeFig?.classList.remove("struck");
         actor?.classList.remove("busy");
@@ -144,10 +140,8 @@ function actorsHtml(state: GameState): string {
     for (let file = 0; file < 8; file += 1) {
       const piece = state.board[rank]![file];
       if (!piece || hidden.has(piece.id)) continue;
-      const square = { file, rank };
-      const offset = squareOffset(square);
       bits.push(`
-        <div class="actor" data-actor="${piece.id}" style="left:${offset.x}%;top:${offset.y}%;z-index:${12 + (7 - rank)}">
+        <div class="actor" data-actor="${piece.id}" data-file="${file}" data-rank="${rank}" style="transform:translate(${file * 100}%,${(7 - rank) * 100}%);z-index:${12 + (7 - rank)}">
           ${pieceFigureHtml(piece, { hp: hpBar(piece) })}
         </div>
       `);
@@ -156,12 +150,12 @@ function actorsHtml(state: GameState): string {
   if (state.combat) {
     const attacker = state.pieces[state.combat.attackerId];
     if (attacker) {
-      const from = squareOffset(state.combat.from);
-      const to = squareOffset(state.combat.to);
-      const left = to.x + (from.x - to.x) * 0.22;
-      const top = to.y + (from.y - to.y) * 0.22;
+      const from = state.combat.from;
+      const to = state.combat.to;
+      const file = to.file + (from.file - to.file) * 0.28;
+      const rank = to.rank + (from.rank - to.rank) * 0.28;
       bits.push(`
-        <div class="actor busy" data-actor="${attacker.id}" style="left:${left}%;top:${top}%;z-index:36">
+        <div class="actor busy" data-actor="${attacker.id}" data-file="${to.file}" data-rank="${to.rank}" style="transform:translate(${file * 100}%,${(7 - rank) * 100}%);z-index:36">
           ${pieceFigureHtml(attacker, { hp: hpBar(attacker) })}
         </div>
       `);
