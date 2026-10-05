@@ -43,26 +43,56 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function placeActor(el: HTMLElement, square: Square): void {
-  el.style.transform = `translate(${square.file * 100}%, ${(7 - square.rank) * 100}%)`;
+function squareBox(root: HTMLElement, square: Square): { x: number; y: number; w: number; h: number } {
+  const btn = root.querySelector<HTMLElement>(`.sq[data-file="${square.file}"][data-rank="${square.rank}"]`);
+  const layer = root.querySelector<HTMLElement>(".piece-layer");
+  if (!btn || !layer) return { x: 0, y: 0, w: 0, h: 0 };
+  const cell = btn.getBoundingClientRect();
+  const origin = layer.getBoundingClientRect();
+  return {
+    x: cell.left - origin.left,
+    y: cell.top - origin.top,
+    w: cell.width,
+    h: cell.height,
+  };
+}
+
+function placeActor(root: HTMLElement, el: HTMLElement, square: Square): void {
+  const box = squareBox(root, square);
+  el.style.left = `${box.x}px`;
+  el.style.top = `${box.y}px`;
+  el.style.width = `${box.w}px`;
+  el.style.height = `${box.h}px`;
+  el.style.transform = "none";
   el.style.zIndex = String(12 + (7 - square.rank));
 }
 
-async function moveActor(el: HTMLElement, from: Square, to: Square, type: PieceType): Promise<void> {
+function layoutActors(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>(".actor[data-file][data-rank]").forEach((el) => {
+    const file = Number(el.dataset.file);
+    const rank = Number(el.dataset.rank);
+    if (Number.isFinite(file) && Number.isFinite(rank)) placeActor(root, el, { file, rank });
+  });
+}
+
+async function moveActor(root: HTMLElement, el: HTMLElement, from: Square, to: Square, type: PieceType): Promise<void> {
   const points = walkWaypoints(type, from, to);
   let current = from;
-  placeActor(el, current);
+  placeActor(root, el, current);
   void el.getBoundingClientRect();
   for (const point of points) {
-    const ms = Math.max(420, motionDurationMs(current, point));
-    await el.animate(
+    const ms = Math.max(520, motionDurationMs(current, point));
+    const start = squareBox(root, current);
+    const end = squareBox(root, point);
+    const animation = el.animate(
       [
-        { transform: `translate(${current.file * 100}%, ${(7 - current.rank) * 100}%)` },
-        { transform: `translate(${point.file * 100}%, ${(7 - point.rank) * 100}%)` },
+        { left: `${start.x}px`, top: `${start.y}px` },
+        { left: `${end.x}px`, top: `${end.y}px` },
       ],
       { duration: ms, easing: "linear", fill: "forwards" },
-    ).finished.catch(() => sleep(ms));
-    placeActor(el, point);
+    );
+    await Promise.all([animation.finished.catch(() => undefined), sleep(ms)]);
+    placeActor(root, el, point);
     current = point;
   }
 }
@@ -79,7 +109,7 @@ async function playMotion(root: HTMLElement, state: GameState, events: MotionEve
       if (!actor || !fig) continue;
       actor.classList.add("busy");
       fig.classList.add("walking");
-      await moveActor(actor, event.from, event.to, event.pieceType);
+      await moveActor(root, actor, event.from, event.to, event.pieceType);
       fig.classList.remove("walking");
       actor.classList.remove("busy");
     } else {
@@ -141,7 +171,7 @@ function actorsHtml(state: GameState): string {
       const piece = state.board[rank]![file];
       if (!piece || hidden.has(piece.id)) continue;
       bits.push(`
-        <div class="actor" data-actor="${piece.id}" data-file="${file}" data-rank="${rank}" style="transform:translate(${file * 100}%,${(7 - rank) * 100}%);z-index:${12 + (7 - rank)}">
+        <div class="actor" data-actor="${piece.id}" data-file="${file}" data-rank="${rank}" style="z-index:${12 + (7 - rank)}">
           ${pieceFigureHtml(piece, { hp: hpBar(piece) })}
         </div>
       `);
@@ -150,12 +180,9 @@ function actorsHtml(state: GameState): string {
   if (state.combat) {
     const attacker = state.pieces[state.combat.attackerId];
     if (attacker) {
-      const from = state.combat.from;
       const to = state.combat.to;
-      const file = to.file + (from.file - to.file) * 0.28;
-      const rank = to.rank + (from.rank - to.rank) * 0.28;
       bits.push(`
-        <div class="actor busy" data-actor="${attacker.id}" data-file="${to.file}" data-rank="${to.rank}" style="transform:translate(${file * 100}%,${(7 - rank) * 100}%);z-index:36">
+        <div class="actor busy" data-actor="${attacker.id}" data-file="${to.file}" data-rank="${to.rank}" style="z-index:36">
           ${pieceFigureHtml(attacker, { hp: hpBar(attacker) })}
         </div>
       `);
@@ -421,6 +448,7 @@ export function chessUi(root: HTMLElement): () => void {
     renderGame(root, state, (next) => {
       void apply(next);
     }, locked);
+    layoutActors(root);
     if (needsBot(state)) {
       const snapshot = state;
       botTimer = setTimeout(() => {

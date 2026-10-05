@@ -35,8 +35,8 @@
   height: 12.5%;
   display: grid;
   place-items: end center;
-  transform-style: preserve-3d;
-  will-change: transform;
+  transform: none;
+  will-change: left, top;
 }
 .actor.busy {
   z-index: 40 !important;
