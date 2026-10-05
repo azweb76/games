@@ -7,12 +7,12 @@ import {
   combatActionList,
   controllerFor,
   createGame,
-  drainBot,
   kitFor,
   pieceAt,
   sameSquare,
   selectSquare,
   spellFor,
+  stepBot,
   type CombatAction,
   type GameMode,
   type GameState,
@@ -75,8 +75,7 @@ function renderGame(root: HTMLElement, state: GameState, dispatch: (next: GameSt
         </div>
         <button class="ghost" data-reset type="button">New match</button>
       </header>
-      <div class="play-grid">
-        <section class="board-wrap">
+      <section class="board-wrap">
           <div class="turn-banner ${state.winner ? "over" : ""}">
             ${
               state.winner
@@ -113,7 +112,7 @@ function renderGame(root: HTMLElement, state: GameState, dispatch: (next: GameSt
                     ${
                       piece && kit
                         ? `<span class="glyph ${piece.color}">${kit.glyph[piece.color]}</span>
-                           <span class="hp"><span style="width:${hpPct(piece)}%"></span></span>`
+                           <span class="piece-hp"><span style="width:${hpPct(piece)}%"></span></span>`
                         : ""
                     }
                     ${col === 0 ? `<span class="coord rank">${rank + 1}</span>` : ""}
@@ -143,7 +142,6 @@ function renderGame(root: HTMLElement, state: GameState, dispatch: (next: GameSt
             </ol>
           </section>
         </aside>
-      </div>
       ${
         state.pendingPromotion
           ? `<div class="modal"><div class="modal-card">
@@ -165,20 +163,20 @@ function renderGame(root: HTMLElement, state: GameState, dispatch: (next: GameSt
   `;
 
   root.querySelector("[data-reset]")?.addEventListener("click", () => {
-    dispatch(drainBot(createGame({ mode: state.mode, seed: Date.now() % 1_000_000 })));
+    dispatch(createGame({ mode: state.mode, seed: Date.now() % 1_000_000 }));
   });
 
   root.querySelectorAll<HTMLButtonElement>(".sq").forEach((button) => {
     button.addEventListener("click", () => {
       const file = Number(button.dataset.file);
       const rank = Number(button.dataset.rank);
-      dispatch(drainBot(selectSquare(state, { file, rank })));
+      dispatch(selectSquare(state, { file, rank }));
     });
   });
 
   root.querySelectorAll<HTMLButtonElement>("[data-promote]").forEach((button) => {
     button.addEventListener("click", () => {
-      dispatch(drainBot(choosePromotion(state, button.dataset.promote as PieceType)));
+      dispatch(choosePromotion(state, button.dataset.promote as PieceType));
     });
   });
 
@@ -187,7 +185,7 @@ function renderGame(root: HTMLElement, state: GameState, dispatch: (next: GameSt
       const kind = button.dataset.action;
       const action: CombatAction =
         kind === "strike" ? { kind: "strike" } : { kind: "spell", spellId: button.dataset.spell ?? "" };
-      dispatch(drainBot(chooseCombatAction(state, action)));
+      dispatch(chooseCombatAction(state, action));
     });
   });
 }
@@ -274,11 +272,22 @@ function escapeHtml(value: string): string {
 
 export function chessUi(root: HTMLElement): () => void {
   let state: GameState | null = null;
+  let botTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const needsBot = (current: GameState): boolean => {
+    if (current.winner) return false;
+    if (current.combat) {
+      const color = actingCombatColor(current);
+      return Boolean(color && controllerFor(current, color) === "bot");
+    }
+    return controllerFor(current, current.turn) === "bot";
+  };
 
   const render = (): void => {
+    if (botTimer) clearTimeout(botTimer);
     if (!state) {
       renderLobby(root, (mode) => {
-        state = drainBot(createGame({ mode, seed: Date.now() % 1_000_000 }));
+        state = createGame({ mode, seed: Date.now() % 1_000_000 });
         render();
       });
       return;
@@ -287,10 +296,19 @@ export function chessUi(root: HTMLElement): () => void {
       state = next;
       render();
     });
+    if (needsBot(state)) {
+      const snapshot = state;
+      botTimer = setTimeout(() => {
+        if (state !== snapshot) return;
+        state = stepBot(snapshot);
+        render();
+      }, 420);
+    }
   };
 
   render();
   return () => {
+    if (botTimer) clearTimeout(botTimer);
     root.innerHTML = "";
   };
 }
