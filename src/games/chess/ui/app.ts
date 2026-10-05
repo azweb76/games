@@ -80,7 +80,7 @@ async function flyPiece(root: HTMLElement, state: GameState, event: Extract<Moti
   const toBtn = root.querySelector<HTMLElement>(`.sq[data-file="${event.to.file}"][data-rank="${event.to.rank}"]`);
   const piece = state.pieces[event.pieceId];
   if (!fromBtn || !toBtn || !piece) {
-    await sleep(900);
+    await sleep(700);
     return;
   }
   const start = fromBtn.getBoundingClientRect();
@@ -97,68 +97,107 @@ async function flyPiece(root: HTMLElement, state: GameState, event: Extract<Moti
   flyer.style.height = `${start.height}px`;
   flyer.style.zIndex = "9999";
   flyer.style.pointerEvents = "none";
-  flyer.style.outline = "none";
   flyer.innerHTML = pieceFigureHtml(piece, { hp: hpBar(piece) });
-  const fig = flyer.querySelector(".fig3d");
-  fig?.classList.add("walking");
+  flyer.querySelector(".fig3d")?.classList.add("walking");
   document.body.append(flyer);
   void flyer.offsetWidth;
   const dist = Math.max(1, Math.abs(event.to.file - event.from.file) + Math.abs(event.to.rank - event.from.rank));
-  const ms = Math.min(1200, 420 + dist * 220);
+  const ms = Math.min(1100, 380 + dist * 200);
   flyer.style.transition = `left ${ms}ms linear, top ${ms}ms linear`;
   flyer.style.left = `${end.left}px`;
   flyer.style.top = `${end.top}px`;
   await sleep(ms);
-  fig?.classList.remove("walking");
   flyer.remove();
 }
 
-async function strikeFlyer(root: HTMLElement, state: GameState, event: Extract<MotionEvent, { type: "attack" }>): Promise<void> {
-  const piece = state.pieces[event.actorId];
-  const square =
-    state.combat && event.actorId === state.combat.attackerId ? state.combat.to : findPieceButton(root, event.actorId);
-  const btn =
-    square && "file" in square
-      ? root.querySelector<HTMLElement>(`.sq[data-file="${square.file}"][data-rank="${square.rank}"]`)
-      : square;
-  const foeId = event.foeId;
-  const foeBtn = (() => {
-    const foe = root.querySelector<HTMLElement>(`[data-actor="${foeId}"]`);
-    if (state.combat && foeId === state.combat.defenderId) {
-      return root.querySelector<HTMLElement>(`.sq[data-file="${state.combat.to.file}"][data-rank="${state.combat.to.rank}"]`);
-    }
-    return foe;
-  })();
-  const target = (btn instanceof HTMLElement ? btn : null) ?? foeBtn;
-  if (!piece || !target) {
-    await sleep(560);
-    return;
-  }
-  const box = target.getBoundingClientRect();
+function mountFlyer(
+  piece: Piece,
+  box: DOMRect,
+  extras: { left?: number; top?: number; scale?: number } = {},
+): HTMLDivElement {
   const flyer = document.createElement("div");
+  const scale = extras.scale ?? 1.35;
+  const width = box.width * scale;
+  const height = box.height * scale;
   flyer.className = "actor flyer";
   flyer.style.position = "fixed";
-  flyer.style.left = `${box.left}px`;
-  flyer.style.top = `${box.top}px`;
-  flyer.style.width = `${box.width}px`;
-  flyer.style.height = `${box.height}px`;
+  flyer.style.left = `${extras.left ?? box.left - (width - box.width) / 2}px`;
+  flyer.style.top = `${extras.top ?? box.top - (height - box.height)}px`;
+  flyer.style.width = `${width}px`;
+  flyer.style.height = `${height}px`;
   flyer.style.zIndex = "9999";
   flyer.style.pointerEvents = "none";
   flyer.innerHTML = pieceFigureHtml(piece, { hp: hpBar(piece) });
-  const fig = flyer.querySelector(".fig3d");
-  fig?.classList.add(event.style === "spell" ? "casting" : "striking");
   document.body.append(flyer);
-  await sleep(560);
-  flyer.remove();
+  return flyer;
 }
 
-function findPieceButton(root: HTMLElement, pieceId: string): HTMLElement | null {
-  const actor = root.querySelector<HTMLElement>(`[data-actor="${pieceId}"]`);
-  if (!actor) return null;
-  const file = Number(actor.dataset.file);
-  const rank = Number(actor.dataset.rank);
-  if (!Number.isFinite(file) || !Number.isFinite(rank)) return actor;
-  return root.querySelector<HTMLElement>(`.sq[data-file="${file}"][data-rank="${rank}"]`);
+async function strikeFlyer(root: HTMLElement, state: GameState, event: Extract<MotionEvent, { type: "attack" }>): Promise<void> {
+  const actor = state.pieces[event.actorId];
+  const foe = state.pieces[event.foeId];
+  const square = state.combat?.to;
+  const from = state.combat?.from;
+  const destBtn = square
+    ? root.querySelector<HTMLElement>(`.sq[data-file="${square.file}"][data-rank="${square.rank}"]`)
+    : null;
+  const fromBtn = from
+    ? root.querySelector<HTMLElement>(`.sq[data-file="${from.file}"][data-rank="${from.rank}"]`)
+    : destBtn;
+  if (!actor || !foe || !destBtn) {
+    await sleep(800);
+    return;
+  }
+  const dest = destBtn.getBoundingClientRect();
+  const origin = (fromBtn ?? destBtn).getBoundingClientRect();
+  root.querySelectorAll<HTMLElement>(`[data-actor="${event.actorId}"], [data-actor="${event.foeId}"]`).forEach((node) => {
+    node.style.visibility = "hidden";
+  });
+  const towardX = dest.left - origin.left;
+  const towardY = dest.top - origin.top;
+  const attackerStartsLeft = dest.left - Math.sign(towardX || -1) * dest.width * 0.55;
+  const attackerStartsTop = dest.top - Math.sign(towardY || 1) * dest.height * 0.2;
+  const attacker = mountFlyer(actor, dest, { left: attackerStartsLeft, top: attackerStartsTop });
+  const defender = mountFlyer(foe, dest);
+  attacker.querySelector(".fig3d")?.classList.add(event.style === "spell" ? "casting" : "striking");
+  void attacker.offsetWidth;
+  attacker.style.transition = "left 280ms ease-in, top 280ms ease-in";
+  attacker.style.left = `${dest.left - dest.width * 0.1}px`;
+  attacker.style.top = `${dest.top - dest.height * 0.35}px`;
+  await sleep(280);
+  defender.querySelector(".fig3d")?.classList.add("struck");
+  const burst = document.createElement("div");
+  burst.className = "clash-burst";
+  burst.style.left = `${dest.left + dest.width / 2}px`;
+  burst.style.top = `${dest.top + dest.height / 2}px`;
+  document.body.append(burst);
+  const banner = root.querySelector(".turn-banner");
+  if (banner) banner.textContent = event.style === "spell" ? "Magic erupts!" : "They clash!";
+  await sleep(820);
+  burst.remove();
+  attacker.remove();
+  defender.remove();
+}
+
+function placeCombatants(root: HTMLElement, state: GameState): void {
+  if (!state.combat) return;
+  const fromBox = squareBox(root, state.combat.from);
+  const toBox = squareBox(root, state.combat.to);
+  const attacker = root.querySelector<HTMLElement>(`[data-actor="${state.combat.attackerId}"]`);
+  const defender = root.querySelector<HTMLElement>(`[data-actor="${state.combat.defenderId}"]`);
+  if (defender) {
+    defender.style.left = `${toBox.x}px`;
+    defender.style.top = `${toBox.y}px`;
+    defender.style.width = `${toBox.w}px`;
+    defender.style.height = `${toBox.h}px`;
+    defender.style.zIndex = "30";
+  }
+  if (attacker) {
+    attacker.style.left = `${toBox.x + (fromBox.x - toBox.x) * 0.42}px`;
+    attacker.style.top = `${toBox.y + (fromBox.y - toBox.y) * 0.42}px`;
+    attacker.style.width = `${toBox.w}px`;
+    attacker.style.height = `${toBox.h}px`;
+    attacker.style.zIndex = "31";
+  }
 }
 
 async function playMotion(root: HTMLElement, state: GameState, events: MotionEvent[]): Promise<void> {
@@ -209,13 +248,11 @@ function renderLobby(root: HTMLElement, onStart: (mode: GameMode) => void): void
 }
 
 function actorsHtml(state: GameState): string {
-  const hidden = new Set<string>();
-  if (state.combat) hidden.add(state.combat.attackerId);
   const bits: string[] = [];
   for (let rank = 0; rank < 8; rank += 1) {
     for (let file = 0; file < 8; file += 1) {
       const piece = state.board[rank]![file];
-      if (!piece || hidden.has(piece.id)) continue;
+      if (!piece) continue;
       bits.push(`
         <div class="actor" data-actor="${piece.id}" data-file="${file}" data-rank="${rank}" style="z-index:${12 + (7 - rank)}">
           ${pieceFigureHtml(piece, { hp: hpBar(piece) })}
@@ -225,7 +262,8 @@ function actorsHtml(state: GameState): string {
   }
   if (state.combat) {
     const attacker = state.pieces[state.combat.attackerId];
-    if (attacker) {
+    const already = bits.some((html) => html.includes(`data-actor="${state.combat!.attackerId}"`));
+    if (attacker && !already) {
       const to = state.combat.to;
       bits.push(`
         <div class="actor busy" data-actor="${attacker.id}" data-file="${to.file}" data-rank="${to.rank}" style="z-index:36">
@@ -474,7 +512,7 @@ export function chessUi(root: HTMLElement): () => void {
       if (banner) banner.textContent = "Walking the board…";
       if (walks.length && next.combat && !state.combat) {
         await playMotion(root, state, walks);
-        if (banner) banner.textContent = "Attacking…";
+        if (banner) banner.textContent = "They clash!";
         await playMotion(root, state, attacks);
       } else {
         await playMotion(root, state, motions);
@@ -498,6 +536,7 @@ export function chessUi(root: HTMLElement): () => void {
       void apply(next);
     }, locked);
     layoutActors(root);
+    if (state) placeCombatants(root, state);
     if (needsBot(state)) {
       const snapshot = state;
       botTimer = setTimeout(() => {
