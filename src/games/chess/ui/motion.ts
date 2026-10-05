@@ -84,10 +84,21 @@ export function detectMotion(prev: GameState, next: GameState): MotionEvent[] {
     return events;
   }
 
-  if (
-    next.lastMove &&
-    (!prev.lastMove || !sameSquare(prev.lastMove.from, next.lastMove.from) || !sameSquare(prev.lastMove.to, next.lastMove.to))
-  ) {
+  for (const [pieceId, piece] of Object.entries(next.pieces)) {
+    const before = pieceSquare(prev, pieceId);
+    const after = pieceSquare(next, pieceId);
+    if (!before || !after || sameSquare(before, after)) continue;
+    events.push({
+      type: "walk",
+      pieceId,
+      pieceType: piece.type,
+      from: before,
+      to: after,
+      capture: false,
+    });
+  }
+
+  if (events.length === 0 && next.lastMove && (!prev.lastMove || !sameSquare(prev.lastMove.from, next.lastMove.from) || !sameSquare(prev.lastMove.to, next.lastMove.to))) {
     const occupant = pieceAt(next, next.lastMove.to);
     if (occupant) {
       events.push({
@@ -98,20 +109,6 @@ export function detectMotion(prev: GameState, next: GameState): MotionEvent[] {
         to: next.lastMove.to,
         capture: false,
       });
-      const rookPath = occupant.type === "king" ? rookCastleWalk(next.lastMove.from, next.lastMove.to) : null;
-      if (rookPath) {
-        const rook = pieceAt(next, rookPath.to);
-        if (rook) {
-          events.push({
-            type: "walk",
-            pieceId: rook.id,
-            pieceType: "rook",
-            from: rookPath.from,
-            to: rookPath.to,
-            capture: false,
-          });
-        }
-      }
     }
   }
 

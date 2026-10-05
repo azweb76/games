@@ -441,7 +441,10 @@ export function chessUi(root: HTMLElement): () => void {
       }
       locked = false;
     }
-    state = next;
+    state = {
+      ...next,
+      log: [...next.log, motions.length ? `anim ${motions.map((event) => event.type).join("+")}` : "anim none"],
+    };
     render();
   };
 
