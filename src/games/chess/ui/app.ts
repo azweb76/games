@@ -1,0 +1,563 @@
+import "./styles.css";
+import "./pieces3d.css";
+import {
+  actingCombatColor,
+  algebraic,
+  chooseCombatAction,
+  choosePromotion,
+  combatActionList,
+  controllerFor,
+  createGame,
+  kitFor,
+  pieceAt,
+  sameSquare,
+  selectSquare,
+  spellFor,
+  stepBot,
+  type CombatAction,
+  type GameMode,
+  type GameState,
+  type Piece,
+  type PieceType,
+  type Square,
+} from "../engine/index.ts";
+import { pieceFigureHtml } from "./piece3d.ts";
+import {
+  detectMotion,
+  walkWaypoints,
+  type MotionEvent,
+} from "./motion.ts";
+
+const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
+
+function hpPct(piece: Piece): number {
+  return Math.max(0, Math.min(100, (piece.hp / piece.maxHp) * 100));
+}
+
+function hpBar(piece: Piece): string {
+  return `<span class="piece-hp"><span style="width:${hpPct(piece)}%"></span></span>`;
+}
+
+function sleep(ms: number): Promise<void> {
+  const duration = Number.isFinite(ms) ? Math.max(0, ms) : 800;
+  return new Promise((resolve) => setTimeout(resolve, duration));
+}
+
+function squareBox(root: HTMLElement, square: Square): { x: number; y: number; w: number; h: number } {
+  const btn = root.querySelector<HTMLElement>(`.sq[data-file="${square.file}"][data-rank="${square.rank}"]`);
+  const layer = root.querySelector<HTMLElement>(".piece-layer");
+  if (!btn || !layer) return { x: 0, y: 0, w: 0, h: 0 };
+  const cell = btn.getBoundingClientRect();
+  const origin = layer.getBoundingClientRect();
+  return {
+    x: cell.left - origin.left,
+    y: cell.top - origin.top,
+    w: cell.width,
+    h: cell.height,
+  };
+}
+
+function placeActor(root: HTMLElement, el: HTMLElement, square: Square): void {
+  const box = squareBox(root, square);
+  el.style.left = `${box.x}px`;
+  el.style.top = `${box.y}px`;
+  el.style.width = `${box.w}px`;
+  el.style.height = `${box.h}px`;
+  el.style.transform = "none";
+  el.style.zIndex = String(12 + (7 - square.rank));
+}
+
+function layoutActors(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>(".actor[data-file][data-rank]").forEach((el) => {
+    const file = Number(el.dataset.file);
+    const rank = Number(el.dataset.rank);
+    if (Number.isFinite(file) && Number.isFinite(rank)) placeActor(root, el, { file, rank });
+  });
+}
+
+async function flyPiece(root: HTMLElement, state: GameState, event: Extract<MotionEvent, { type: "walk" }>): Promise<void> {
+  const fromBtn = root.querySelector<HTMLElement>(`.sq[data-file="${event.from.file}"][data-rank="${event.from.rank}"]`);
+  const toBtn = root.querySelector<HTMLElement>(`.sq[data-file="${event.to.file}"][data-rank="${event.to.rank}"]`);
+  const piece = state.pieces[event.pieceId];
+  if (!fromBtn || !toBtn || !piece) {
+    await sleep(700);
+    return;
+  }
+  const start = fromBtn.getBoundingClientRect();
+  const end = toBtn.getBoundingClientRect();
+  root.querySelectorAll<HTMLElement>(`[data-actor="${event.pieceId}"]`).forEach((node) => {
+    node.style.visibility = "hidden";
+  });
+  const flyer = document.createElement("div");
+  flyer.className = "actor flyer walking-fly";
+  flyer.style.position = "fixed";
+  flyer.style.left = `${start.left}px`;
+  flyer.style.top = `${start.top}px`;
+  flyer.style.width = `${start.width}px`;
+  flyer.style.height = `${start.height}px`;
+  flyer.style.zIndex = "9999";
+  flyer.style.pointerEvents = "none";
+  flyer.innerHTML = pieceFigureHtml(piece, { hp: hpBar(piece) });
+  flyer.querySelector(".fig3d")?.classList.add("walking");
+  document.body.append(flyer);
+  void flyer.offsetWidth;
+  const dist = Math.max(1, Math.abs(event.to.file - event.from.file) + Math.abs(event.to.rank - event.from.rank));
+  const ms = Math.min(1100, 380 + dist * 200);
+  flyer.style.transition = `left ${ms}ms linear, top ${ms}ms linear`;
+  flyer.style.left = `${end.left}px`;
+  flyer.style.top = `${end.top}px`;
+  await sleep(ms);
+  flyer.remove();
+}
+
+function mountFlyer(
+  piece: Piece,
+  box: DOMRect,
+  extras: { left?: number; top?: number; scale?: number } = {},
+): HTMLDivElement {
+  const flyer = document.createElement("div");
+  const scale = extras.scale ?? 1.7;
+  const width = box.width * scale;
+  const height = box.height * scale;
+  flyer.className = "actor flyer";
+  flyer.style.position = "fixed";
+  flyer.style.left = `${extras.left ?? box.left - (width - box.width) / 2}px`;
+  flyer.style.top = `${extras.top ?? box.top - (height - box.height)}px`;
+  flyer.style.width = `${width}px`;
+  flyer.style.height = `${height}px`;
+  flyer.style.zIndex = "9999";
+  flyer.style.pointerEvents = "none";
+  flyer.innerHTML = pieceFigureHtml(piece, { hp: hpBar(piece) });
+  document.body.append(flyer);
+  return flyer;
+}
+
+async function strikeFlyer(root: HTMLElement, state: GameState, event: Extract<MotionEvent, { type: "attack" }>): Promise<void> {
+  const actor = state.pieces[event.actorId];
+  const foe = state.pieces[event.foeId];
+  const square = state.combat?.to;
+  const from = state.combat?.from;
+  const destBtn = square
+    ? root.querySelector<HTMLElement>(`.sq[data-file="${square.file}"][data-rank="${square.rank}"]`)
+    : null;
+  const fromBtn = from
+    ? root.querySelector<HTMLElement>(`.sq[data-file="${from.file}"][data-rank="${from.rank}"]`)
+    : destBtn;
+  if (!actor || !foe || !destBtn) {
+    await sleep(800);
+    return;
+  }
+  const dest = destBtn.getBoundingClientRect();
+  const origin = (fromBtn ?? destBtn).getBoundingClientRect();
+  root.querySelectorAll<HTMLElement>(`[data-actor="${event.actorId}"], [data-actor="${event.foeId}"]`).forEach((node) => {
+    node.style.visibility = "hidden";
+  });
+  const towardX = dest.left - origin.left;
+  const towardY = dest.top - origin.top;
+  const attackerStartsLeft = dest.left - Math.sign(towardX || -1) * dest.width * 0.55;
+  const attackerStartsTop = dest.top - Math.sign(towardY || 1) * dest.height * 0.2;
+  const attacker = mountFlyer(actor, dest, { left: attackerStartsLeft, top: attackerStartsTop });
+  const defender = mountFlyer(foe, dest);
+  attacker.querySelector(".fig3d")?.classList.add(event.style === "spell" ? "casting" : "striking");
+  void attacker.offsetWidth;
+  attacker.style.transition = "left 480ms ease-in, top 480ms ease-in";
+  attacker.style.left = `${dest.left - dest.width * 0.08}px`;
+  attacker.style.top = `${dest.top - dest.height * 0.45}px`;
+  await sleep(480);
+  defender.querySelector(".fig3d")?.classList.add("struck");
+  const burst = document.createElement("div");
+  burst.className = "clash-burst";
+  burst.style.left = `${dest.left + dest.width / 2}px`;
+  burst.style.top = `${dest.top + dest.height / 2}px`;
+  const label = document.createElement("div");
+  label.className = "clash-label";
+  label.textContent = event.style === "spell" ? "MAGIC!" : "CLASH!";
+  label.style.left = `${dest.left + dest.width / 2}px`;
+  label.style.top = `${dest.top}px`;
+  document.body.append(burst, label);
+  const banner = root.querySelector(".turn-banner");
+  if (banner) banner.textContent = event.style === "spell" ? "Magic erupts!" : "They clash!";
+  root.querySelectorAll(".fighter .fig3d").forEach((fig, index) => {
+    fig.classList.add(index === 0 ? (event.style === "spell" ? "casting" : "striking") : "struck");
+  });
+  await sleep(1400);
+  burst.remove();
+  label.remove();
+  attacker.remove();
+  defender.remove();
+}
+
+function placeCombatants(root: HTMLElement, state: GameState): void {
+  if (!state.combat) return;
+  const fromBox = squareBox(root, state.combat.from);
+  const toBox = squareBox(root, state.combat.to);
+  const attacker = root.querySelector<HTMLElement>(`[data-actor="${state.combat.attackerId}"]`);
+  const defender = root.querySelector<HTMLElement>(`[data-actor="${state.combat.defenderId}"]`);
+  if (defender) {
+    defender.style.left = `${toBox.x}px`;
+    defender.style.top = `${toBox.y}px`;
+    defender.style.width = `${toBox.w}px`;
+    defender.style.height = `${toBox.h}px`;
+    defender.style.zIndex = "30";
+  }
+  if (attacker) {
+    attacker.style.left = `${toBox.x + (fromBox.x - toBox.x) * 0.42}px`;
+    attacker.style.top = `${toBox.y + (fromBox.y - toBox.y) * 0.42}px`;
+    attacker.style.width = `${toBox.w}px`;
+    attacker.style.height = `${toBox.h}px`;
+    attacker.style.zIndex = "31";
+  }
+}
+
+async function playMotion(root: HTMLElement, state: GameState, events: MotionEvent[]): Promise<void> {
+  for (const event of events) {
+    if (event.type === "walk") {
+      const hops = event.pieceType === "knight" ? walkWaypoints(event.pieceType, event.from, event.to) : [event.to];
+      let current = event.from;
+      for (const point of hops) {
+        await flyPiece(root, state, { ...event, from: current, to: point });
+        current = point;
+      }
+    } else {
+      await strikeFlyer(root, state, event);
+    }
+  }
+}
+
+function renderLobby(root: HTMLElement, onStart: (mode: GameMode) => void): void {
+  root.innerHTML = `
+    <div class="chess-shell">
+      <header class="chess-top">
+        <a class="back" href="#/">← Arena</a>
+        <div>
+          <p class="kicker">Self-contained game</p>
+          <h1>Blood &amp; Board</h1>
+        </div>
+      </header>
+      <section class="mode-card">
+        <p class="lead">Pieces keep chess movement, but a capture is a duel. Each fighter is a standing miniature: they walk the tiled board, then strike or cast.</p>
+        <div class="mode-actions">
+          <button data-mode="pvp" type="button">Player vs Player</button>
+          <button data-mode="pvb" type="button">Player vs Bot</button>
+        </div>
+        <ul class="kit-preview">
+          ${(["pawn", "knight", "bishop", "rook", "queen", "king"] as PieceType[])
+            .map((type) => {
+              const kit = kitFor(type);
+              return `<li><strong>${kit.title}</strong> — ${kit.fightingStyle}</li>`;
+            })
+            .join("")}
+        </ul>
+      </section>
+    </div>
+  `;
+  root.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => {
+    button.addEventListener("click", () => onStart(button.dataset.mode as GameMode));
+  });
+}
+
+function actorsHtml(state: GameState): string {
+  const bits: string[] = [];
+  for (let rank = 0; rank < 8; rank += 1) {
+    for (let file = 0; file < 8; file += 1) {
+      const piece = state.board[rank]![file];
+      if (!piece) continue;
+      bits.push(`
+        <div class="actor" data-actor="${piece.id}" data-file="${file}" data-rank="${rank}" style="z-index:${12 + (7 - rank)}">
+          ${pieceFigureHtml(piece, { hp: hpBar(piece) })}
+        </div>
+      `);
+    }
+  }
+  if (state.combat) {
+    const attacker = state.pieces[state.combat.attackerId];
+    const already = bits.some((html) => html.includes(`data-actor="${state.combat!.attackerId}"`));
+    if (attacker && !already) {
+      const to = state.combat.to;
+      bits.push(`
+        <div class="actor busy" data-actor="${attacker.id}" data-file="${to.file}" data-rank="${to.rank}" style="z-index:36">
+          ${pieceFigureHtml(attacker, { hp: hpBar(attacker) })}
+        </div>
+      `);
+    }
+  }
+  return bits.join("");
+}
+
+function renderGame(root: HTMLElement, state: GameState, dispatch: (next: GameState) => void, locked: boolean): void {
+  const acting = actingCombatColor(state);
+  const kitside = state.selected ? pieceAt(state, state.selected) : null;
+  const combatAttacker = state.combat ? state.pieces[state.combat.attackerId] : null;
+  const combatDefender = state.combat ? state.pieces[state.combat.defenderId] : null;
+
+  root.innerHTML = `
+    <div class="chess-shell play">
+      <header class="chess-top">
+        <a class="back" href="#/">← Arena</a>
+        <div>
+          <p class="kicker">${state.mode === "pvb" ? "Player vs Bot" : "Player vs Player"}</p>
+          <h1>Blood &amp; Board</h1>
+        </div>
+        <button class="ghost" data-reset type="button">New match</button>
+      </header>
+      <section class="board-wrap">
+          <div class="turn-banner ${state.winner ? "over" : ""}">
+            ${
+              state.winner
+                ? state.winner === "draw"
+                  ? "Drawn game"
+                  : `${state.winner} wins`
+                : state.combat
+                  ? `Duel — ${acting}'s action`
+                  : `${state.turn} to move${state.mode === "pvb" && controllerFor(state, state.turn) === "bot" ? " (bot)" : ""}`
+            }
+          </div>
+          <div class="stage">
+            <div class="board-3d">
+              <div class="board" role="grid" aria-label="Chess board">
+                ${Array.from({ length: 8 }, (_, row) => {
+                  const rank = 7 - row;
+                  return Array.from({ length: 8 }, (_, col) => {
+                    const file = col;
+                    const square: Square = { file, rank };
+                    const light = (file + rank) % 2 === 1;
+                    const selected = state.selected && sameSquare(state.selected, square);
+                    const legal = state.legalTargets.some((target) => sameSquare(target, square));
+                    const last =
+                      state.lastMove &&
+                      (sameSquare(state.lastMove.from, square) || sameSquare(state.lastMove.to, square));
+                      const occupied = Boolean(pieceAt(state, square));
+                    return `
+                      <button
+                        type="button"
+                        class="sq ${light ? "light" : "dark"} ${selected ? "selected" : ""} ${legal ? "legal" : ""} ${legal && occupied ? "capture" : ""} ${last ? "last" : ""}"
+                        data-file="${file}"
+                        data-rank="${rank}"
+                        aria-label="${FILES[file]}${rank + 1}"
+                      >
+                        ${col === 0 ? `<span class="coord rank">${rank + 1}</span>` : ""}
+                        ${row === 7 ? `<span class="coord file">${FILES[file]}</span>` : ""}
+                      </button>
+                    `;
+                  }).join("");
+                }).join("")}
+              </div>
+              <div class="piece-layer">${actorsHtml(state)}</div>
+            </div>
+          </div>
+          ${
+            state.combat && combatAttacker && combatDefender
+              ? combatHtml(state, combatAttacker, combatDefender)
+              : ""
+          }
+        </section>
+        <aside class="side">
+          <section class="panel">
+            <h2>Inspector</h2>
+            ${
+              kitside
+                ? inspectorHtml(kitside)
+                : "<p class='muted'>Select a piece to inspect its fighting kit.</p>"
+            }
+          </section>
+          <section class="panel log">
+            <h2>Chronicle</h2>
+            <ol>
+              ${state.log
+                .slice(-12)
+                .map((line) => `<li>${escapeHtml(line)}</li>`)
+                .join("")}
+            </ol>
+          </section>
+        </aside>
+      ${
+        state.pendingPromotion
+          ? `<div class="modal"><div class="modal-card">
+              <h2>Promote pawn</h2>
+              <div class="mode-actions">
+                ${["queen", "rook", "bishop", "knight"]
+                  .map((type) => `<button data-promote="${type}" type="button">${type}</button>`)
+                  .join("")}
+              </div>
+            </div></div>`
+          : ""
+      }
+    </div>
+  `;
+
+  if (locked) return;
+
+  root.querySelector("[data-reset]")?.addEventListener("click", () => {
+    dispatch(createGame({ mode: state.mode, seed: Date.now() % 1_000_000 }));
+  });
+
+  root.querySelectorAll<HTMLButtonElement>(".sq").forEach((button) => {
+    button.addEventListener("click", () => {
+      const file = Number(button.dataset.file);
+      const rank = Number(button.dataset.rank);
+      dispatch(selectSquare(state, { file, rank }));
+    });
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-promote]").forEach((button) => {
+    button.addEventListener("click", () => {
+      dispatch(choosePromotion(state, button.dataset.promote as PieceType));
+    });
+  });
+
+  root.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const kind = button.dataset.action;
+      const action: CombatAction =
+        kind === "strike" ? { kind: "strike" } : { kind: "spell", spellId: button.dataset.spell ?? "" };
+      dispatch(chooseCombatAction(state, action));
+    });
+  });
+}
+
+function inspectorHtml(piece: Piece): string {
+  const kit = kitFor(piece.type);
+  return `
+    ${pieceFigureHtml(piece, { compact: true })}
+    <p class="piece-name">${piece.color} ${kit.title}</p>
+    <p class="muted">${kit.fightingStyle}</p>
+    <dl class="stats">
+      <div><dt>HP</dt><dd>${piece.hp}/${piece.maxHp}</dd></div>
+      <div><dt>MP</dt><dd>${piece.mp}/${piece.maxMp}</dd></div>
+      <div><dt>ATK</dt><dd>${kit.stats.atk}</dd></div>
+      <div><dt>DEF</dt><dd>${kit.stats.def}</dd></div>
+      <div><dt>MAG</dt><dd>${kit.stats.mag}</dd></div>
+      <div><dt>SPD</dt><dd>${kit.stats.spd}</dd></div>
+    </dl>
+    <ul class="spells">
+      ${kit.spells.map((spell) => `<li><strong>${spell.name}</strong> (${spell.mpCost} MP) — ${spell.description}</li>`).join("")}
+    </ul>
+  `;
+}
+
+function combatHtml(state: GameState, attacker: Piece, defender: Piece): string {
+  const acting = actingCombatColor(state);
+  const humanTurn = acting ? controllerFor(state, acting) === "human" : false;
+  const actions = combatActionList(state);
+  return `
+    <div class="combat-dock">
+      <div class="modal-card combat">
+        <p class="kicker">Duel on ${algebraic(state.combat!.to)}</p>
+        <h2>Steel &amp; Spell</h2>
+        <div class="fighters">
+          ${fighterCard(attacker, "Challenger")}
+          <div class="vs">vs</div>
+          ${fighterCard(defender, "Defender")}
+        </div>
+        <ol class="combat-log">
+          ${state.combat!.log.map((entry) => `<li>${escapeHtml(entry.text)}</li>`).join("")}
+        </ol>
+        ${
+          humanTurn
+            ? `<div class="mode-actions wrap">
+                ${actions
+                  .map((action) => {
+                    if (action.kind === "strike") {
+                      return `<button data-action="strike" type="button">Strike</button>`;
+                    }
+                    const spell = spellFor(
+                      (state.combat!.nextRole === "attacker" ? attacker : defender).type,
+                      action.spellId,
+                    );
+                    return `<button data-action="spell" data-spell="${action.spellId}" type="button">${spell?.name ?? action.spellId}</button>`;
+                  })
+                  .join("")}
+              </div>`
+            : `<p class="muted">Waiting on ${acting}…</p>`
+        }
+      </div>
+    </div>
+  `;
+}
+
+function fighterCard(piece: Piece, role: string): string {
+  const kit = kitFor(piece.type);
+  return `
+    <div class="fighter ${piece.color}">
+      <p class="role">${role}</p>
+      ${pieceFigureHtml(piece, { compact: true })}
+      <p>${piece.color} ${kit.title}</p>
+      <div class="bar hp"><span style="width:${hpPct(piece)}%"></span></div>
+      <div class="bar mp"><span style="width:${(piece.mp / piece.maxMp) * 100}%"></span></div>
+      <p class="muted">HP ${piece.hp} · MP ${piece.mp}</p>
+    </div>
+  `;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+export function chessUi(root: HTMLElement): () => void {
+  let state: GameState | null = null;
+  let botTimer: ReturnType<typeof setTimeout> | undefined;
+  let locked = false;
+
+  const needsBot = (current: GameState): boolean => {
+    if (locked || current.winner) return false;
+    if (current.combat) {
+      const color = actingCombatColor(current);
+      return Boolean(color && controllerFor(current, color) === "bot");
+    }
+    return controllerFor(current, current.turn) === "bot";
+  };
+
+  const apply = async (next: GameState): Promise<void> => {
+    if (!state || locked) return;
+    const motions = detectMotion(state, next);
+    const walks = motions.filter((event) => event.type === "walk");
+    const attacks = motions.filter((event) => event.type === "attack");
+    if (motions.length > 0) {
+      locked = true;
+      const banner = root.querySelector(".turn-banner");
+      if (walks.length) {
+        if (banner) banner.textContent = "Walking the board…";
+        await playMotion(root, state, walks);
+      }
+      if (attacks.length) {
+        if (banner) banner.textContent = "They clash!";
+        await playMotion(root, next, attacks);
+      }
+      locked = false;
+    }
+    state = next;
+    render();
+  };
+
+  const render = (): void => {
+    if (botTimer) clearTimeout(botTimer);
+    if (!state) {
+      renderLobby(root, (mode) => {
+        state = createGame({ mode, seed: Date.now() % 1_000_000 });
+        render();
+      });
+      return;
+    }
+    renderGame(root, state, (next) => {
+      void apply(next);
+    }, locked);
+    layoutActors(root);
+    if (state) placeCombatants(root, state);
+    if (needsBot(state)) {
+      const snapshot = state;
+      botTimer = setTimeout(() => {
+        if (state !== snapshot || locked) return;
+        void apply(stepBot(snapshot));
+      }, 520);
+    }
+  };
+
+  render();
+  return () => {
+    if (botTimer) clearTimeout(botTimer);
+    root.innerHTML = "";
+  };
+}

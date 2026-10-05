@@ -1,0 +1,171 @@
+.stage {
+  position: relative;
+  perspective: 900px;
+  perspective-origin: 50% 0%;
+}
+.board-3d {
+  position: relative;
+  transform-style: preserve-3d;
+}
+.board-3d .board {
+  width: 100%;
+  aspect-ratio: 1;
+}
+.sq {
+  box-shadow: inset 0 -6px 0 #0002;
+}
+.sq.light { background: linear-gradient(160deg, #f0ddb3 0%, #d7c08a 70%, #c4ab72 100%); }
+.sq.dark { background: linear-gradient(160deg, #8a5e38 0%, #623f24 72%, #4a2e19 100%); }
+
+.piece-layer {
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  overflow: visible;
+}
+.actor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 12.5%;
+  height: 12.5%;
+  display: grid;
+  place-items: end center;
+  overflow: visible;
+}
+.actor.busy { z-index: 40 !important; }
+.actor.flyer { overflow: visible; }
+.actor .piece-hp {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 2%;
+}
+
+.fig3d {
+  position: relative;
+  width: 100%;
+  height: 170%;
+  margin-bottom: 4%;
+  filter: drop-shadow(2px 4px 3px #0008);
+}
+.fig-shadow {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 0;
+  height: 14%;
+  background: radial-gradient(ellipse at center, #0007 0%, #0000 72%);
+}
+.mini {
+  position: absolute;
+  inset: 0 4% 8%;
+  transform: rotateX(12deg);
+  transform-origin: 50% 100%;
+}
+.mini svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
+}
+.fig3d.walking .mini { animation: walk-bob 0.28s ease-in-out infinite; }
+.fig3d.striking .mini { animation: strike-lunge 0.7s ease-in; }
+.fig3d.casting .mini { animation: cast-rise 0.7s ease-out; }
+.fig3d.struck .mini { animation: hit-recoil 0.55s ease-out; }
+.fig3d.compact {
+  width: 92px;
+  height: 128px;
+  margin: 0 auto 0.35rem;
+}
+.fig3d.compact .mini { transform: none; }
+
+.fx-slash,
+.fx-spark,
+.fx-impact {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+.fig3d.striking .fx-slash {
+  opacity: 1;
+  background: linear-gradient(118deg, #fff0 20%, #ffe27a 48%, #ff6b3d 52%, #fff0 70%);
+  clip-path: polygon(8% 78%, 92% 8%, 98% 18%, 14% 88%);
+  animation: slash-flash 0.7s ease-out;
+}
+.fig3d.casting .fx-spark {
+  opacity: 1;
+  background: radial-gradient(circle, #9cf6ff 0%, #4a8fd400 68%);
+  animation: spark-burst 0.7s ease-out;
+}
+.fig3d.struck .fx-impact {
+  opacity: 1;
+  background: radial-gradient(circle, #fff 0%, #ffb347 30%, #ff2a0000 70%);
+  animation: impact-burst 0.55s ease-out;
+}
+
+.clash-burst {
+  position: fixed;
+  width: 140px;
+  height: 140px;
+  margin: -70px 0 0 -70px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 10000;
+  background: radial-gradient(circle, #fff8e0 0%, #ffb347 24%, #c23b3b66 55%, #c23b3b00 72%);
+  animation: impact-burst 1.1s ease-out forwards;
+}
+.clash-label {
+  position: fixed;
+  transform: translate(-50%, -120%);
+  z-index: 10001;
+  pointer-events: none;
+  font-family: Georgia, serif;
+  font-size: 1.6rem;
+  letter-spacing: 0.18em;
+  color: #ffe7a8;
+  text-shadow: 0 2px 0 #5a1a10, 0 0 18px #c23b3b;
+  animation: clash-pop 1.4s ease-out forwards;
+}
+@keyframes clash-pop {
+  0% { opacity: 0; transform: translate(-50%, -80%) scale(0.6); }
+  20% { opacity: 1; transform: translate(-50%, -130%) scale(1.15); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -160%) scale(1); }
+}
+
+@keyframes walk-bob {
+  0%, 100% { transform: rotateX(12deg) translateY(0); }
+  50% { transform: rotateX(12deg) translateY(-8px) rotateZ(5deg); }
+}
+@keyframes strike-lunge {
+  0% { transform: rotateX(12deg) translate(0, 0) scale(1); }
+  40% { transform: rotateX(8deg) translate(18px, -16px) scale(1.18) rotateZ(-12deg); }
+  100% { transform: rotateX(12deg) translate(0, 0) scale(1); }
+}
+@keyframes cast-rise {
+  0% { transform: rotateX(12deg) scale(1); }
+  40% { transform: rotateX(0deg) scale(1.2) translateY(-18px); }
+  100% { transform: rotateX(12deg) scale(1); }
+}
+@keyframes hit-recoil {
+  0% { transform: rotateX(12deg); }
+  30% { transform: rotateX(12deg) translate(-16px, 4px) rotateZ(-14deg); filter: brightness(1.8); }
+  100% { transform: rotateX(12deg); }
+}
+@keyframes slash-flash {
+  0% { opacity: 0; transform: scale(0.3) rotate(-24deg); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.4) rotate(10deg); }
+}
+@keyframes spark-burst {
+  0% { opacity: 0; transform: scale(0.2); }
+  35% { opacity: 1; transform: scale(1.3); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+@keyframes impact-burst {
+  0% { opacity: 0; transform: scale(0.2); }
+  30% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
