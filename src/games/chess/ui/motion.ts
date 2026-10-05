@@ -141,7 +141,7 @@ export function walkWaypoints(pieceType: PieceType, from: Square, to: Square): S
 
 export function motionDurationMs(from: Square, to: Square): number {
   const dist = Math.max(1, Math.abs(to.file - from.file) + Math.abs(to.rank - from.rank));
-  return Math.min(1400, 220 + dist * 160);
+  return Math.min(1800, 380 + dist * 240);
 }
 
 export function reducedMotion(): boolean {

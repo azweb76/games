@@ -55,19 +55,27 @@ function placeActor(el: HTMLElement, square: Square): void {
 async function moveActor(el: HTMLElement, from: Square, to: Square, type: PieceType): Promise<void> {
   const points = walkWaypoints(type, from, to);
   let current = from;
+  placeActor(el, current);
+  void el.getBoundingClientRect();
   for (const point of points) {
-    const ms = reducedMotion() ? 0 : motionDurationMs(current, point);
-    el.style.transition = `left ${ms}ms linear, top ${ms}ms linear`;
+    const ms = reducedMotion() ? 1 : motionDurationMs(current, point);
+    const start = squareOffset(current);
+    const end = squareOffset(point);
+    await el.animate(
+      [
+        { left: `${start.x}%`, top: `${start.y}%` },
+        { left: `${end.x}%`, top: `${end.y}%` },
+      ],
+      { duration: ms, easing: "linear", fill: "forwards" },
+    ).finished;
     placeActor(el, point);
-    await sleep(ms);
     current = point;
   }
-  el.style.transition = "";
 }
 
 async function playMotion(root: HTMLElement, state: GameState, events: MotionEvent[]): Promise<void> {
   const layer = root.querySelector(".piece-layer");
-  if (!layer || reducedMotion()) return;
+  if (!layer) return;
   for (const event of events) {
     if (event.type === "walk") {
       const actor = layer.querySelector<HTMLElement>(`[data-actor="${event.pieceId}"]`);
@@ -87,7 +95,7 @@ async function playMotion(root: HTMLElement, state: GameState, events: MotionEve
         actor?.classList.add("busy");
         fig.classList.add(event.style === "spell" ? "casting" : "striking");
         foeFig?.classList.add("struck");
-        await sleep(480);
+        await sleep(reducedMotion() ? 1 : 520);
         fig.classList.remove("casting", "striking");
         foeFig?.classList.remove("struck");
         actor?.classList.remove("busy");

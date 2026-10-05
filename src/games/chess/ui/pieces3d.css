@@ -1,11 +1,11 @@
 .stage {
   position: relative;
-  perspective: 980px;
-  perspective-origin: 50% 18%;
+  perspective: 1400px;
+  perspective-origin: 50% 0%;
 }
 .board-3d {
   position: relative;
-  transform: rotateX(42deg);
+  transform: rotateX(14deg);
   transform-style: preserve-3d;
   transform-origin: 50% 100%;
 }
@@ -23,7 +23,7 @@
 
 .piece-layer {
   position: absolute;
-  inset: 0;
+  inset: 8px;
   pointer-events: none;
   transform-style: preserve-3d;
 }
@@ -34,7 +34,6 @@
   display: grid;
   place-items: end center;
   transform-style: preserve-3d;
-  transition: left 0.01s linear, top 0.01s linear;
 }
 .actor.busy {
   z-index: 40 !important;
@@ -48,10 +47,10 @@
 
 .fig3d {
   position: relative;
-  width: 70%;
-  height: 118%;
+  width: 86%;
+  height: 165%;
   transform-style: preserve-3d;
-  margin-bottom: 8%;
+  margin-bottom: 6%;
 }
 .fig-shadow {
   position: absolute;
