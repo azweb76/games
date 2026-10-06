@@ -3,6 +3,22 @@ import { kitFor } from "../engine/index.ts";
 import { attackLabel, pickAttack, poseFor, seedFightRng, type AttackKind } from "./attacks.ts";
 import { pieceFigureHtml } from "./piece3d.ts";
 
+/** Whole capture melee (close-in, blows, kill, occupy) targets 3–4 seconds. */
+export const MELEE_MS = {
+  approach: 420,
+  swingConnect: 300,
+  magicConnect: 340,
+  swingHold: 480,
+  lethalHold: 520,
+  occupy: 560,
+} as const;
+
+export function meleeDurationMs(): number {
+  const swing = MELEE_MS.swingConnect + MELEE_MS.swingHold;
+  const kill = MELEE_MS.magicConnect + MELEE_MS.lethalHold;
+  return MELEE_MS.approach + swing + swing + kill + MELEE_MS.occupy;
+}
+
 function sleep(ms: number): Promise<void> {
   const duration = Number.isFinite(ms) ? Math.max(0, ms) : 800;
   return new Promise((resolve) => setTimeout(resolve, duration));
@@ -148,18 +164,18 @@ async function playSwing(options: {
   let burst: HTMLElement | null = null;
   if (kind === "magic") {
     fx = castBolt(actor, foe);
-    await sleep(780);
+    await sleep(MELEE_MS.magicConnect);
     setPose(foe, "struck");
     burst = burstAt(dest, true);
   } else {
     fx = sparkArc(dest, fromLeft, kind);
-    await sleep(640);
+    await sleep(MELEE_MS.swingConnect);
     setPose(foe, lethal ? "struck" : "parrying");
     burst = burstAt(dest, false);
   }
   const nextHp = lethal ? 0 : Math.max(8, options.foeHp - (kind === "magic" ? 38 : 28));
   setHp(foe, nextHp);
-  await sleep(lethal ? 1400 : 1250);
+  await sleep(lethal ? MELEE_MS.lethalHold : MELEE_MS.swingHold);
   fx.remove();
   burst.remove();
   label.remove();
@@ -179,7 +195,7 @@ export async function playMeleeDuel(options: {
   const destBtn = root.querySelector<HTMLElement>(`.sq[data-file="${to.file}"][data-rank="${to.rank}"]`);
   const fromBtn = root.querySelector<HTMLElement>(`.sq[data-file="${from.file}"][data-rank="${from.rank}"]`);
   if (!destBtn || !fromBtn) {
-    await sleep(1200);
+    await sleep(MELEE_MS.occupy);
     return;
   }
   const dest = destBtn.getBoundingClientRect();
@@ -211,18 +227,15 @@ export async function playMeleeDuel(options: {
   if (banner) banner.textContent = `${attacker.color} ${attacker.type} closes in with ${weapon}…`;
 
   setPose(attackerEl, "walking");
-  slideTo(attackerEl, dest, fightLeftA, fightTop, 900);
-  slideTo(defenderEl, dest, fightLeftD, fightTop, 640);
-  await sleep(980);
-  setPose(attackerEl, "idle");
-  setPose(defenderEl, "idle");
-  await sleep(650);
+  slideTo(attackerEl, dest, fightLeftA, fightTop, MELEE_MS.approach);
+  slideTo(defenderEl, dest, fightLeftD, fightTop, MELEE_MS.approach - 80);
+  await sleep(MELEE_MS.approach);
 
   const rng = seedFightRng(attacker, defender);
   const attackerName = `${attacker.color} ${attacker.type}`;
   const defenderName = `${defender.color} ${defender.type}`;
 
-  let defenderHp = await playSwing({
+  await playSwing({
     actor: attackerEl,
     foe: defenderEl,
     dest,
@@ -247,19 +260,6 @@ export async function playMeleeDuel(options: {
   });
   setHp(attackerEl, 78);
 
-  defenderHp = await playSwing({
-    actor: attackerEl,
-    foe: defenderEl,
-    dest,
-    fromLeft: attackerOnLeft,
-    kind: pickAttack(rng, attacker.type),
-    lethal: false,
-    foeHp: defenderHp,
-    banner,
-    name: attackerName,
-  });
-
-  await sleep(520);
   const killKind = pickAttack(rng, attacker.type);
   await playSwing({
     actor: attackerEl,
@@ -268,7 +268,7 @@ export async function playMeleeDuel(options: {
     fromLeft: attackerOnLeft,
     kind: killKind,
     lethal: true,
-    foeHp: defenderHp,
+    foeHp: 36,
     banner,
     name: attackerName,
   });
@@ -276,14 +276,12 @@ export async function playMeleeDuel(options: {
   setPose(defenderEl, "fallen");
   setHp(defenderEl, 0);
   if (banner) banner.textContent = `${attackerName} fells the ${defender.type}!`;
-  await sleep(1500);
 
   setPose(attackerEl, "walking");
-  slideTo(attackerEl, dest, dest.left, dest.top, 1100);
-  await sleep(1180);
+  slideTo(attackerEl, dest, dest.left, dest.top, MELEE_MS.occupy);
+  await sleep(MELEE_MS.occupy);
   setPose(attackerEl, "victorious");
   if (banner) banner.textContent = `${attackerName} takes the square.`;
-  await sleep(900);
 
   attackerEl.remove();
   defenderEl.remove();

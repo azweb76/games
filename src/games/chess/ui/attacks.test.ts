@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "../engine/rng.ts";
 import { attackLabel, magicChanceFor, pickAttack, poseFor, type AttackKind } from "./attacks.ts";
+import { meleeDurationMs } from "./melee.ts";
 
 describe("melee attack rolls", () => {
   it("gives casters a higher chance of magic than militia", () => {
@@ -33,5 +34,12 @@ describe("melee attack rolls", () => {
     expect(attackLabel("magic", true)).toBe("ARCANE KILL!");
     expect(poseFor("magic")).toBe("casting");
     expect(poseFor("thrust")).toBe("striking");
+  });
+});
+
+describe("melee duration", () => {
+  it("keeps the capture attack between 3 and 4 seconds", () => {
+    expect(meleeDurationMs()).toBeGreaterThanOrEqual(3000);
+    expect(meleeDurationMs()).toBeLessThanOrEqual(4000);
   });
 });

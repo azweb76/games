@@ -71,15 +71,15 @@
 }
 .fig3d.idle .mini { animation: idle-sway 2.4s ease-in-out infinite; }
 .fig3d.walking .mini { animation: walk-bob 0.36s ease-in-out infinite; }
-.fig3d.striking .mini { animation: strike-lunge 0.95s ease-in-out; }
-.fig3d.striking.atk-thrust .mini { animation: strike-thrust 0.95s ease-in-out; }
-.fig3d.striking.atk-smash .mini { animation: strike-smash 0.95s ease-in-out; }
-.fig3d.striking.atk-overhead .mini { animation: strike-overhead 0.95s ease-in-out; }
-.fig3d.casting .mini { animation: cast-rise 1.05s ease-out; }
-.fig3d.struck .mini { animation: hit-recoil 0.85s ease-out; }
-.fig3d.parrying .mini { animation: parry-brace 0.8s ease-out; }
-.fig3d.fallen .mini { animation: fall-dead 1.15s ease-in forwards; }
-.fig3d.victorious .mini { animation: victory-raise 0.9s ease-out forwards; }
+.fig3d.striking .mini { animation: strike-lunge 0.5s ease-in-out; }
+.fig3d.striking.atk-thrust .mini { animation: strike-thrust 0.5s ease-in-out; }
+.fig3d.striking.atk-smash .mini { animation: strike-smash 0.5s ease-in-out; }
+.fig3d.striking.atk-overhead .mini { animation: strike-overhead 0.5s ease-in-out; }
+.fig3d.casting .mini { animation: cast-rise 0.5s ease-out; }
+.fig3d.struck .mini { animation: hit-recoil 0.45s ease-out; }
+.fig3d.parrying .mini { animation: parry-brace 0.45s ease-out; }
+.fig3d.fallen .mini { animation: fall-dead 0.5s ease-in forwards; }
+.fig3d.victorious .mini { animation: victory-raise 0.45s ease-out forwards; }
 .fig3d.compact {
   width: 92px;
   height: 128px;
@@ -92,13 +92,13 @@
   transform-origin: 50% 85%;
 }
 .fig3d.idle .weapon { animation: weapon-idle 2.4s ease-in-out infinite; }
-.fig3d.striking .weapon { animation: weapon-slash 0.95s ease-in-out; }
-.fig3d.striking.atk-thrust .weapon { animation: weapon-thrust 0.95s ease-in-out; }
-.fig3d.striking.atk-smash .weapon { animation: weapon-smash 0.95s ease-in-out; }
-.fig3d.striking.atk-overhead .weapon { animation: weapon-overhead 0.95s ease-in-out; }
-.fig3d.casting .weapon { animation: weapon-cast 1.05s ease-out; }
-.fig3d.parrying .weapon { animation: weapon-parry 0.8s ease-out; }
-.fig3d.victorious .weapon { animation: weapon-raise 0.9s ease-out forwards; }
+.fig3d.striking .weapon { animation: weapon-slash 0.5s ease-in-out; }
+.fig3d.striking.atk-thrust .weapon { animation: weapon-thrust 0.5s ease-in-out; }
+.fig3d.striking.atk-smash .weapon { animation: weapon-smash 0.5s ease-in-out; }
+.fig3d.striking.atk-overhead .weapon { animation: weapon-overhead 0.5s ease-in-out; }
+.fig3d.casting .weapon { animation: weapon-cast 0.5s ease-out; }
+.fig3d.parrying .weapon { animation: weapon-parry 0.45s ease-out; }
+.fig3d.victorious .weapon { animation: weapon-raise 0.45s ease-out forwards; }
 .melee-fighter.face-left { transform: scaleX(-1); transform-origin: 50% 80%; }
 .melee-fighter.face-left .piece-hp { transform: scaleX(-1); }
 
@@ -114,17 +114,17 @@
   opacity: 1;
   background: linear-gradient(118deg, #fff0 20%, #ffe27a 48%, #ff6b3d 52%, #fff0 70%);
   clip-path: polygon(8% 78%, 92% 8%, 98% 18%, 14% 88%);
-  animation: slash-flash 0.95s ease-out;
+  animation: slash-flash 0.5s ease-out;
 }
 .fig3d.casting .fx-spark {
   opacity: 1;
   background: radial-gradient(circle, #9cf6ff 0%, #4a8fd400 68%);
-  animation: spark-burst 1.05s ease-out;
+  animation: spark-burst 0.5s ease-out;
 }
 .fig3d.struck .fx-impact {
   opacity: 1;
   background: radial-gradient(circle, #fff 0%, #ffb347 30%, #ff2a0000 70%);
-  animation: impact-burst 0.85s ease-out;
+  animation: impact-burst 0.45s ease-out;
 }
 
 .clash-burst {
@@ -151,7 +151,7 @@
   letter-spacing: 0.14em;
   color: #ffe7a8;
   text-shadow: 0 2px 0 #5a1a10, 0 0 18px #c23b3b;
-  animation: clash-pop 1.9s ease-out forwards;
+  animation: clash-pop 1.05s ease-out forwards;
 }
 @keyframes clash-pop {
   0% { opacity: 0; transform: translate(-50%, -80%) scale(0.6); }
@@ -169,7 +169,7 @@
   z-index: 10002;
   background: conic-gradient(from 200deg, #fff0 0 40%, #ffe27a 48%, #ff6b3d 56%, #fff0 70%);
   clip-path: polygon(8% 78%, 92% 8%, 98% 18%, 14% 88%);
-  animation: slash-flash 0.85s ease-out forwards;
+  animation: slash-flash 0.5s ease-out forwards;
 }
 .weapon-arc.from-right { transform: scaleX(-1); }
 .weapon-arc.atk-thrust {
@@ -191,7 +191,7 @@
   z-index: 10003;
   background: radial-gradient(circle, #fff 0%, #7cf0ff 40%, #4a6bff00 70%);
   box-shadow: 0 0 16px #7cf0ff, 0 0 4px #fff;
-  transition: transform 0.7s ease-in;
+  transition: transform 0.34s ease-in;
 }
 
 @keyframes idle-sway {
