@@ -19,20 +19,19 @@ describe("board motion", () => {
     ]);
   });
 
-  it("walks onto the enemy square then auto-fights when a capture lands", () => {
+  it("starts the melee on the square without walking onto the defender first", () => {
     let game = createGame({ mode: "pvp", seed: 7 });
     game = playMove(game, { from: { file: 4, rank: 1 }, to: { file: 4, rank: 3 }, capture: false });
     game = playMove(game, { from: { file: 3, rank: 6 }, to: { file: 3, rank: 4 }, capture: false });
     const prev = game;
     const next = playMove(game, { from: { file: 4, rank: 3 }, to: { file: 3, rank: 4 }, capture: true });
     const motion = detectMotion(prev, next);
+    expect(motion).toHaveLength(1);
     expect(motion[0]).toMatchObject({
-      type: "walk",
+      type: "attack",
       from: { file: 4, rank: 3 },
       to: { file: 3, rank: 4 },
-      capture: true,
     });
-    expect(motion[1]).toMatchObject({ type: "attack", style: "strike" });
     expect(next.combat).toBeNull();
     expect(next.pieces[prev.board[4]![3]!.id]).toBeUndefined();
   });

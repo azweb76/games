@@ -57,15 +57,6 @@ function meleeFromCapture(prev: GameState, next: GameState): MotionEvent[] | nul
   if (!attacker || !defender || vanished.length === 0) return null;
   return [
     {
-      type: "walk",
-      pieceId: attacker.id,
-      pieceType: attacker.type,
-      from: next.lastMove.from,
-      to: next.lastMove.to,
-      capture: true,
-      foeId: defender.id,
-    },
-    {
       type: "attack",
       actorId: attacker.id,
       foeId: defender.id,

@@ -137,7 +137,7 @@ function renderLobby(root: HTMLElement, onStart: (mode: GameMode) => void): void
         </div>
       </header>
       <section class="mode-card">
-        <p class="lead">Chess movement, medieval steel. A capture is an automatic melee on the square — weapons clash, and the attacker always wins.</p>
+        <p class="lead">Chess movement, medieval steel. Captures auto-fight on the square with swords, spears, and the rest — sometimes magic. The attacker always kills, then takes the spot.</p>
         <div class="mode-actions">
           <button data-mode="pvp" type="button">Player vs Player</button>
           <button data-mode="pvb" type="button">Player vs Bot</button>
