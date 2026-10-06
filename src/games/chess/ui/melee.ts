@@ -90,7 +90,8 @@ export async function playMeleeDuel(options: {
   }
   const dest = destBtn.getBoundingClientRect();
   const origin = (fromBtn ?? destBtn).getBoundingClientRect();
-  root.querySelectorAll<HTMLElement>(`[data-actor="${attacker.id}"], [data-actor="${defender.id}"]`).forEach((node) => {
+  const boardActors = [...root.querySelectorAll<HTMLElement>(".piece-layer .actor")];
+  boardActors.forEach((node) => {
     node.style.visibility = "hidden";
   });
 
@@ -162,4 +163,7 @@ export async function playMeleeDuel(options: {
   await sleep(420);
   attackerEl.remove();
   defenderEl.remove();
+  boardActors.forEach((node) => {
+    node.style.visibility = "";
+  });
 }
