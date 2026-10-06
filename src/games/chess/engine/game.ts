@@ -1,5 +1,5 @@
-import { cloneBoard, createInitialBoard, findKing, findPieceSquare } from "./board.ts";
-import { applyCombatAction, availableActions, combatActors, openingInitiative } from "./combat.ts";
+import { cloneBoard, createInitialBoard, findKing } from "./board.ts";
+import { availableActions, combatActors } from "./combat.ts";
 import { kitFor } from "./kits.ts";
 import { hasLegalMove, inCheck, legalMoves } from "./moves.ts";
 import type {
@@ -28,8 +28,8 @@ export function createGame(options: { mode: GameMode; seed?: number; humanColor?
     combat: null,
     log: [
       options.mode === "pvb"
-        ? "Player vs bot. White moves first. Captures start a duel."
-        : "Player vs player. Sit together — captures start a duel.",
+        ? "Player vs bot. White moves first. Captures auto-fight — the attacker always wins."
+        : "Player vs player. Sit together — captures auto-fight, and the attacker always wins.",
     ],
     winner: null,
     lastMove: null,
@@ -165,40 +165,37 @@ function applyQuietMove(state: GameState, move: Move): GameState {
   return concludeTurn(next, mover.color);
 }
 
-function beginCombat(state: GameState, move: Move): GameState {
-  const attacker = pieceAt(state, move.from);
-  const defender = move.enPassant
-    ? pieceAt(state, { file: move.to.file, rank: move.from.rank })
-    : pieceAt(state, move.to);
-  if (!attacker || !defender) return applyQuietMove(state, move);
-  const nextRole = openingInitiative(attacker, defender);
-  return {
+function capturedPiece(state: GameState, move: Move): Piece | null {
+  if (move.enPassant) return pieceAt(state, { file: move.to.file, rank: move.from.rank });
+  return pieceAt(state, move.to);
+}
+
+function applyCaptureMove(state: GameState, move: Move): GameState {
+  const mover = pieceAt(state, move.from);
+  const defender = capturedPiece(state, move);
+  if (!mover) return state;
+  if (!defender) return applyQuietMove(state, move);
+  const board = cloneBoard(state.board);
+  board[move.from.rank]![move.from.file] = null;
+  if (move.enPassant) board[move.from.rank]![move.to.file] = null;
+  let winner: Piece = { ...mover };
+  if (move.promotion) winner = promotePiece(winner, move.promotion);
+  board[move.to.rank]![move.to.file] = winner;
+  const next: GameState = {
     ...state,
-    selected: null,
-    legalTargets: [],
-    pendingPromotion: null,
-    combat: {
-      attackerId: attacker.id,
-      defenderId: defender.id,
-      from: move.from,
-      to: move.to,
-      nextRole,
-      round: 1,
-      statuses: {},
-      log: [
-        {
-          text: `${attacker.color} ${attacker.type} challenges ${defender.color} ${defender.type} at ${algebraic(move.to)}!`,
-        },
-        { text: `${nextRole === "attacker" ? attacker.color : defender.color} seizes the initiative.` },
-      ],
-      promotion: move.promotion,
-      enPassant: move.enPassant,
-    },
+    board,
+    pieces: indexPieces(board),
+    lastMove: { from: move.from, to: move.to },
+    castling: updateCastling(state, move, mover),
+    enPassant: null,
+    halfmove: 0,
+    combat: null,
     log: [
       ...state.log,
-      `Duel: ${attacker.color} ${attacker.type} vs ${defender.color} ${defender.type} on ${algebraic(move.to)}.`,
+      `${mover.color} ${mover.type} charges ${defender.color} ${defender.type} at ${algebraic(move.to)} and cuts them down.`,
     ],
   };
+  return concludeTurn(next, mover.color);
 }
 
 function resolveCombatBoard(state: GameState): GameState {
@@ -209,33 +206,19 @@ function resolveCombatBoard(state: GameState): GameState {
   const board = cloneBoard(state.board);
   const pieces = { ...state.pieces };
 
-  const attackerAlive = Boolean(attacker && attacker.hp > 0);
-  const defenderAlive = Boolean(defender && defender.hp > 0);
-
   const fromPiece = board[combat.from.rank]![combat.from.file];
   if (fromPiece?.id === combat.attackerId) board[combat.from.rank]![combat.from.file] = null;
   if (combat.enPassant) {
     board[combat.from.rank]![combat.to.file] = null;
   }
 
-  if (attackerAlive && attacker) {
-    let winnerPiece = { ...attacker };
+  if (attacker) {
+    let winnerPiece = { ...attacker, hp: attacker.maxHp };
     if (combat.promotion) winnerPiece = promotePiece(winnerPiece, combat.promotion);
     board[combat.to.rank]![combat.to.file] = winnerPiece;
     pieces[winnerPiece.id] = winnerPiece;
-    if (defender) delete pieces[defender.id];
-  } else {
-    if (attacker) delete pieces[attacker.id];
-    if (defenderAlive && defender) {
-      const stay = findPieceSquare(board, defender.id) ?? combat.to;
-      board[stay.rank]![stay.file] = { ...defender };
-      pieces[defender.id] = { ...defender };
-    } else if (defender) {
-      const stay = findPieceSquare(board, defender.id);
-      if (stay) board[stay.rank]![stay.file] = null;
-      delete pieces[defender.id];
-    }
   }
+  if (defender) delete pieces[defender.id];
 
   const moverColor = attacker?.color ?? state.turn;
   const next: GameState = {
@@ -248,9 +231,7 @@ function resolveCombatBoard(state: GameState): GameState {
     halfmove: 0,
     log: [
       ...state.log,
-      attackerAlive
-        ? `${attacker!.color} ${attacker!.type} wins the duel and holds ${algebraic(combat.to)}.`
-        : `${defender?.color ?? "defender"} holds the square.`,
+      `${attacker?.color ?? "attacker"} ${attacker?.type ?? "piece"} wins the melee and holds ${algebraic(combat.to)}.`,
     ],
   };
   return concludeTurn(syncBoardPieces(next), moverColor);
@@ -267,7 +248,7 @@ export function playMove(state: GameState, move: Move): GameState {
   );
   const chosen = legal[0];
   if (!chosen) return state;
-  if (chosen.capture) return beginCombat(state, chosen);
+  if (chosen.capture) return applyCaptureMove(state, chosen);
   return applyQuietMove(state, chosen);
 }
 
@@ -304,15 +285,27 @@ export function choosePromotion(state: GameState, type: PieceType): GameState {
 
 export function chooseCombatAction(state: GameState, action: CombatAction): GameState {
   if (!state.combat || state.winner) return state;
-  const applied = applyCombatAction(state.pieces, state.combat, action, state.rngState);
+  void action;
+  const attacker = state.pieces[state.combat.attackerId];
+  const defender = state.pieces[state.combat.defenderId];
   const next = syncBoardPieces({
     ...state,
-    pieces: applied.pieces,
-    combat: applied.combat,
-    rngState: applied.rngState,
+    pieces: {
+      ...state.pieces,
+      ...(attacker ? { [attacker.id]: { ...attacker } } : {}),
+      ...(defender ? { [defender.id]: { ...defender, hp: 0 } } : {}),
+    },
+    combat: {
+      ...state.combat,
+      log: [
+        ...state.combat.log,
+        {
+          text: `${attacker?.color ?? "attacker"} ${attacker?.type ?? "piece"} strikes true — the defender falls.`,
+        },
+      ],
+    },
   });
-  if (applied.over) return resolveCombatBoard(next);
-  return next;
+  return resolveCombatBoard(next);
 }
 
 export function combatActionList(state: GameState): CombatAction[] {

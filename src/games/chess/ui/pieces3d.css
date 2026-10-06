@@ -69,16 +69,31 @@
   overflow: visible;
   display: block;
 }
+.fig3d.idle .mini { animation: idle-sway 2.4s ease-in-out infinite; }
 .fig3d.walking .mini { animation: walk-bob 0.28s ease-in-out infinite; }
-.fig3d.striking .mini { animation: strike-lunge 0.7s ease-in; }
+.fig3d.striking .mini { animation: strike-lunge 0.55s ease-in; }
 .fig3d.casting .mini { animation: cast-rise 0.7s ease-out; }
-.fig3d.struck .mini { animation: hit-recoil 0.55s ease-out; }
+.fig3d.struck .mini { animation: hit-recoil 0.45s ease-out; }
+.fig3d.parrying .mini { animation: parry-brace 0.4s ease-out; }
+.fig3d.fallen .mini { animation: fall-dead 0.7s ease-in forwards; }
+.fig3d.victorious .mini { animation: victory-raise 0.7s ease-out forwards; }
 .fig3d.compact {
   width: 92px;
   height: 128px;
   margin: 0 auto 0.35rem;
 }
-.fig3d.compact .mini { transform: none; }
+.fig3d.compact .mini { transform: none; animation: idle-sway 2.6s ease-in-out infinite; }
+
+.weapon {
+  transform-box: fill-box;
+  transform-origin: 50% 85%;
+}
+.fig3d.idle .weapon { animation: weapon-idle 2.4s ease-in-out infinite; }
+.fig3d.striking .weapon { animation: weapon-slash 0.55s ease-in; }
+.fig3d.parrying .weapon { animation: weapon-parry 0.4s ease-out; }
+.fig3d.victorious .weapon { animation: weapon-raise 0.7s ease-out forwards; }
+.melee-fighter.face-left .mini { transform: rotateX(12deg) scaleX(-1); }
+.melee-fighter.face-right .mini { transform: rotateX(12deg); }
 
 .fx-slash,
 .fx-spark,
@@ -133,6 +148,54 @@
   20% { opacity: 1; transform: translate(-50%, -130%) scale(1.15); }
   70% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -160%) scale(1); }
+}
+
+.weapon-arc {
+  position: fixed;
+  width: 160px;
+  height: 90px;
+  margin: -45px 0 0 -80px;
+  pointer-events: none;
+  z-index: 10002;
+  background: conic-gradient(from 200deg, #fff0 0 40%, #ffe27a 48%, #ff6b3d 56%, #fff0 70%);
+  clip-path: polygon(8% 78%, 92% 8%, 98% 18%, 14% 88%);
+  animation: slash-flash 0.45s ease-out forwards;
+}
+.weapon-arc.from-right { transform: scaleX(-1); }
+
+@keyframes idle-sway {
+  0%, 100% { transform: rotateX(12deg) translateY(0) rotateZ(0deg); }
+  50% { transform: rotateX(12deg) translateY(-4px) rotateZ(-2deg); }
+}
+@keyframes weapon-idle {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-6deg); }
+}
+@keyframes weapon-slash {
+  0% { transform: rotate(-50deg) translate(-4px, 6px); }
+  45% { transform: rotate(38deg) translate(10px, -16px); }
+  100% { transform: rotate(8deg); }
+}
+@keyframes weapon-parry {
+  0% { transform: rotate(0deg); }
+  40% { transform: rotate(-28deg) translate(-8px, 4px); }
+  100% { transform: rotate(-10deg); }
+}
+@keyframes weapon-raise {
+  to { transform: rotate(-40deg) translate(4px, -10px); }
+}
+@keyframes parry-brace {
+  0% { transform: rotateX(12deg); }
+  40% { transform: rotateX(12deg) translate(-8px, 2px) rotateZ(8deg); }
+  100% { transform: rotateX(12deg); }
+}
+@keyframes fall-dead {
+  0% { transform: rotateX(12deg); opacity: 1; }
+  100% { transform: rotateX(12deg) translate(18px, 28px) rotateZ(78deg); opacity: 0.15; }
+}
+@keyframes victory-raise {
+  0% { transform: rotateX(12deg); }
+  100% { transform: rotateX(8deg) translateY(-10px) scale(1.08); }
 }
 
 @keyframes walk-bob {

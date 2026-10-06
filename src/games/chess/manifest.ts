@@ -4,8 +4,8 @@ import type { GameManifest } from "../types.ts";
 export const chessManifest: GameManifest = {
   id: "chess",
   title: "Blood & Board",
-  tagline: "Chess, then a duel",
+  tagline: "Chess, then automatic melee",
   description:
-    "Standard movement, but every capture becomes a fight. Each piece brings unique steel, armor, and magic. Play locally against a friend or a bot.",
+    "Standard movement. Captures auto-fight on the board with medieval weapons, and the attacker always wins. Play locally against a friend or a bot.",
   mount: chessUi,
 };

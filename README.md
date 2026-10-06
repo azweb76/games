@@ -8,11 +8,10 @@ Each title lives under `src/games/<id>/` with its own engine, UI, styles, and te
 
 ### Blood & Board (chess)
 
-Standard chess movement. A capture does not remove a piece instantly — the two pieces fight.
+Standard chess movement. A capture is an automatic medieval melee on the square — weapons clash, and **the attacker always wins**.
 
-- Every piece type has its own HP, MP, ATK, DEF, MAG, SPD, and spells.
-- Duels are turn-based: Strike or cast.
-- Magic includes stuns, heals, drains, fortify, and last stand.
+- Animated miniatures: spear militia, lance cavalry, staff bishops, warhammer rooks, sword queens, and sword-and-shield kings.
+- Captures auto-fight on the board. No duel menu.
 - **Player vs Player** (hot-seat) and **Player vs Bot**.
 
 ## Scripts

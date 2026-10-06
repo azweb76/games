@@ -27,6 +27,7 @@ export interface PieceKit {
   glyph: { white: string; black: string };
   title: string;
   fightingStyle: string;
+  weapon: string;
   spells: SpellDef[];
 }
 
@@ -37,7 +38,8 @@ export const PIECE_KITS: Record<PieceType, PieceKit> = {
     stats: { atk: 8, def: 6, mag: 5, spd: 7 },
     glyph: { white: "♙", black: "♟" },
     title: "Militia",
-    fightingStyle: "Shields up and crowded melee. Weak alone, stubborn in a scrum.",
+    fightingStyle: "Spear and round shield. They charge, clash, and the attacker always finishes the foe.",
+    weapon: "spear",
     spells: [
       {
         id: "shield-bash",
@@ -64,7 +66,8 @@ export const PIECE_KITS: Record<PieceType, PieceKit> = {
     stats: { atk: 14, def: 8, mag: 6, spd: 15 },
     glyph: { white: "♘", black: "♞" },
     title: "Cavalier",
-    fightingStyle: "First-strike cavalry. High speed and brutal physical bursts.",
+    fightingStyle: "Lance-first cavalry. They gallop in and pin the defender in one pass.",
+    weapon: "lance",
     spells: [
       {
         id: "lunge",
@@ -88,7 +91,8 @@ export const PIECE_KITS: Record<PieceType, PieceKit> = {
     stats: { atk: 6, def: 7, mag: 16, spd: 10 },
     glyph: { white: "♗", black: "♝" },
     title: "Theurge",
-    fightingStyle: "Glass-cannon caster. Prefers holy bolts and mending light.",
+    fightingStyle: "Crozier staff and mitre. They smash, then the attacker stands over the fallen.",
+    weapon: "staff",
     spells: [
       {
         id: "arcane-bolt",
@@ -115,7 +119,8 @@ export const PIECE_KITS: Record<PieceType, PieceKit> = {
     stats: { atk: 12, def: 16, mag: 5, spd: 5 },
     glyph: { white: "♖", black: "♜" },
     title: "Siege Tower",
-    fightingStyle: "Living fortress. Slow, armored, and hits like a ram.",
+    fightingStyle: "Warhammer and battlements. Slow, armored, and the charge always topples the square.",
+    weapon: "maul",
     spells: [
       {
         id: "siege-crash",
@@ -139,7 +144,8 @@ export const PIECE_KITS: Record<PieceType, PieceKit> = {
     stats: { atk: 13, def: 10, mag: 14, spd: 12 },
     glyph: { white: "♕", black: "♛" },
     title: "Sovereign",
-    fightingStyle: "Versatile duelist. Mixes steel with draining royal magic.",
+    fightingStyle: "Longsword and circlet. A royal lunge ends the melee for the attacker.",
+    weapon: "longsword",
     spells: [
       {
         id: "royal-flare",
@@ -166,7 +172,8 @@ export const PIECE_KITS: Record<PieceType, PieceKit> = {
     stats: { atk: 10, def: 12, mag: 10, spd: 8 },
     glyph: { white: "♔", black: "♚" },
     title: "Warlord",
-    fightingStyle: "Last line of the army. Commands the field and refuses to fall easily.",
+    fightingStyle: "Crown, kite shield, and arming sword. The king who attacks always claims the field.",
+    weapon: "arming sword",
     spells: [
       {
         id: "command",

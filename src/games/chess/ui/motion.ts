@@ -18,6 +18,10 @@ export type MotionEvent =
       actorId: string;
       foeId: string;
       style: MotionStyle;
+      from: Square;
+      to: Square;
+      actorPiece: Piece;
+      foePiece: Piece;
     };
 
 function pieceSquare(state: GameState, pieceId: string): Square | null {
@@ -45,11 +49,41 @@ function lastCombatStyle(state: GameState): MotionStyle {
   return /cast/i.test(text) ? "spell" : "strike";
 }
 
+function meleeFromCapture(prev: GameState, next: GameState): MotionEvent[] | null {
+  if (!next.lastMove) return null;
+  const vanished = Object.values(prev.pieces).filter((piece) => !next.pieces[piece.id]);
+  const attacker = pieceAt(next, next.lastMove.to);
+  const defender = vanished[0];
+  if (!attacker || !defender || vanished.length === 0) return null;
+  return [
+    {
+      type: "walk",
+      pieceId: attacker.id,
+      pieceType: attacker.type,
+      from: next.lastMove.from,
+      to: next.lastMove.to,
+      capture: true,
+      foeId: defender.id,
+    },
+    {
+      type: "attack",
+      actorId: attacker.id,
+      foeId: defender.id,
+      style: "strike",
+      from: next.lastMove.from,
+      to: next.lastMove.to,
+      actorPiece: attacker,
+      foePiece: defender,
+    },
+  ];
+}
+
 export function detectMotion(prev: GameState, next: GameState): MotionEvent[] {
   const events: MotionEvent[] = [];
 
   if (!prev.combat && next.combat) {
     const attacker = next.pieces[next.combat.attackerId];
+    const defender = next.pieces[next.combat.defenderId];
     events.push({
       type: "walk",
       pieceId: next.combat.attackerId,
@@ -59,12 +93,18 @@ export function detectMotion(prev: GameState, next: GameState): MotionEvent[] {
       capture: true,
       foeId: next.combat.defenderId,
     });
-    events.push({
-      type: "attack",
-      actorId: next.combat.attackerId,
-      foeId: next.combat.defenderId,
-      style: "strike",
-    });
+    if (attacker && defender) {
+      events.push({
+        type: "attack",
+        actorId: next.combat.attackerId,
+        foeId: next.combat.defenderId,
+        style: "strike",
+        from: next.combat.from,
+        to: next.combat.to,
+        actorPiece: attacker,
+        foePiece: defender,
+      });
+    }
     return events;
   }
 
@@ -75,14 +115,25 @@ export function detectMotion(prev: GameState, next: GameState): MotionEvent[] {
   ) {
     const actorId = prev.combat.nextRole === "attacker" ? prev.combat.attackerId : prev.combat.defenderId;
     const foeId = actorId === prev.combat.attackerId ? prev.combat.defenderId : prev.combat.attackerId;
-    events.push({
-      type: "attack",
-      actorId,
-      foeId,
-      style: lastCombatStyle(next),
-    });
+    const actorPiece = next.pieces[actorId] ?? prev.pieces[actorId];
+    const foePiece = next.pieces[foeId] ?? prev.pieces[foeId];
+    if (actorPiece && foePiece) {
+      events.push({
+        type: "attack",
+        actorId,
+        foeId,
+        style: lastCombatStyle(next),
+        from: prev.combat.from,
+        to: prev.combat.to,
+        actorPiece,
+        foePiece,
+      });
+    }
     return events;
   }
+
+  const captureMelee = meleeFromCapture(prev, next);
+  if (captureMelee) return captureMelee;
 
   for (const [pieceId, piece] of Object.entries(next.pieces)) {
     const before = pieceSquare(prev, pieceId);

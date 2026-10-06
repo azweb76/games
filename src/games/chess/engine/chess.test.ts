@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  actingCombatColor,
-  chooseCombatAction,
   controllerFor,
   createGame,
   drainBot,
@@ -24,7 +22,8 @@ describe("Blood & Board engine", () => {
     expect(game.board[1]!.every((piece) => piece?.type === "pawn")).toBe(true);
     expect(kitFor("knight").stats.spd).toBeGreaterThan(kitFor("rook").stats.spd);
     expect(kitFor("bishop").spells.some((spell) => spell.id === "arcane-bolt")).toBe(true);
-    expect(kitFor("pawn").spells).not.toEqual(kitFor("queen").spells);
+    expect(kitFor("pawn").weapon).toBe("spear");
+    expect(kitFor("knight").weapon).toBe("lance");
   });
 
   it("generates legal pawn and knight moves from the opening", () => {
@@ -39,33 +38,30 @@ describe("Blood & Board engine", () => {
     expect(knightMoves.some((move) => move.to.file === 2 && move.to.rank === 2)).toBe(true);
   });
 
-  it("starts a duel instead of instantly capturing", () => {
+  it("lets the attacker instantly win a capture melee", () => {
     let game = createGame({ mode: "pvp", seed: 7 });
     game = playMove(game, { from: { file: 4, rank: 1 }, to: { file: 4, rank: 3 }, capture: false });
     game = playMove(game, { from: { file: 3, rank: 6 }, to: { file: 3, rank: 4 }, capture: false });
+    const defender = pieceAt(game, { file: 3, rank: 4 });
     game = playMove(game, { from: { file: 4, rank: 3 }, to: { file: 3, rank: 4 }, capture: true });
-    expect(game.combat).not.toBeNull();
-    expect(pieceAt(game, { file: 4, rank: 3 })?.type).toBe("pawn");
+    expect(game.combat).toBeNull();
+    expect(pieceAt(game, { file: 3, rank: 4 })?.color).toBe("white");
     expect(pieceAt(game, { file: 3, rank: 4 })?.type).toBe("pawn");
-    expect(game.turn).toBe("white");
+    expect(pieceAt(game, { file: 4, rank: 3 })).toBeNull();
+    if (defender) expect(game.pieces[defender.id]).toBeUndefined();
+    expect(game.turn).toBe("black");
+    expect(game.log.at(-1)).toMatch(/cuts them down/);
   });
 
-  it("resolves a duel when one fighter is reduced to 0 HP", () => {
+  it("never lets the defender survive an attacking capture", () => {
     let game = createGame({ mode: "pvp", seed: 11 });
     game = playMove(game, { from: { file: 4, rank: 1 }, to: { file: 4, rank: 3 }, capture: false });
     game = playMove(game, { from: { file: 3, rank: 6 }, to: { file: 3, rank: 4 }, capture: false });
+    const attackerId = pieceAt(game, { file: 4, rank: 3 })!.id;
+    const defenderId = pieceAt(game, { file: 3, rank: 4 })!.id;
     game = playMove(game, { from: { file: 4, rank: 3 }, to: { file: 3, rank: 4 }, capture: true });
-    const attackerId = game.combat!.attackerId;
-    const defenderId = game.combat!.defenderId;
-    let guard = 0;
-    while (game.combat && guard < 40) {
-      game = chooseCombatAction(game, { kind: "strike" });
-      guard += 1;
-    }
-    expect(game.combat).toBeNull();
-    const attacker = game.pieces[attackerId];
-    const defender = game.pieces[defenderId];
-    expect(Boolean(attacker) !== Boolean(defender)).toBe(true);
+    expect(game.pieces[attackerId]).toBeDefined();
+    expect(game.pieces[defenderId]).toBeUndefined();
     expect(game.turn).toBe("black");
   });
 
@@ -146,20 +142,14 @@ describe("Blood & Board engine", () => {
     expect(controllerFor(pvp, "black")).toBe("human");
   });
 
-  it("lets the bot finish its own duel actions", () => {
+  it("lets the bot capture without opening a duel menu", () => {
     let game = createGame({ mode: "pvb", seed: 3 });
     game = playMove(game, { from: { file: 4, rank: 1 }, to: { file: 4, rank: 3 }, capture: false });
     game = drainBot(game);
     game = playMove(game, { from: { file: 4, rank: 3 }, to: { file: 4, rank: 4 }, capture: false });
     game = drainBot(game);
-    expect(game.turn === "white" || game.combat !== null || game.winner !== null).toBe(true);
-    if (game.combat) {
-      expect(["white", "black"]).toContain(actingCombatColor(game));
-      game = drainBot(game, 40);
-      if (actingCombatColor(game) === "black") {
-        expect(game.combat).toBeNull();
-      }
-    }
+    expect(game.combat).toBeNull();
+    expect(game.turn === "white" || game.winner !== null).toBe(true);
   });
 
   it("still recognizes check after quiet moves", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createGame, playMove, chooseCombatAction } from "../engine/index.ts";
+import { createGame, playMove } from "../engine/index.ts";
 import { detectMotion, knightWaypoints, walkWaypoints, motionDurationMs } from "./motion.ts";
 
 describe("board motion", () => {
@@ -19,7 +19,7 @@ describe("board motion", () => {
     ]);
   });
 
-  it("walks onto the enemy square then attacks when a duel starts", () => {
+  it("walks onto the enemy square then auto-fights when a capture lands", () => {
     let game = createGame({ mode: "pvp", seed: 7 });
     game = playMove(game, { from: { file: 4, rank: 1 }, to: { file: 4, rank: 3 }, capture: false });
     game = playMove(game, { from: { file: 3, rank: 6 }, to: { file: 3, rank: 4 }, capture: false });
@@ -33,18 +33,25 @@ describe("board motion", () => {
       capture: true,
     });
     expect(motion[1]).toMatchObject({ type: "attack", style: "strike" });
+    expect(next.combat).toBeNull();
+    expect(next.pieces[prev.board[4]![3]!.id]).toBeUndefined();
   });
 
-  it("emits an attack when a combat action lands", () => {
+  it("snapshots both fighters for the melee even after the defender is gone", () => {
     let game = createGame({ mode: "pvp", seed: 7 });
     game = playMove(game, { from: { file: 4, rank: 1 }, to: { file: 4, rank: 3 }, capture: false });
     game = playMove(game, { from: { file: 3, rank: 6 }, to: { file: 3, rank: 4 }, capture: false });
-    game = playMove(game, { from: { file: 4, rank: 3 }, to: { file: 3, rank: 4 }, capture: true });
     const prev = game;
-    const next = chooseCombatAction(game, { kind: "strike" });
+    const next = playMove(game, { from: { file: 4, rank: 3 }, to: { file: 3, rank: 4 }, capture: true });
     const motion = detectMotion(prev, next);
-    expect(motion).toHaveLength(1);
-    expect(motion[0]?.type).toBe("attack");
+    const attack = motion.find((event) => event.type === "attack");
+    expect(attack?.type).toBe("attack");
+    if (attack?.type === "attack") {
+      expect(attack.actorPiece.color).toBe("white");
+      expect(attack.foePiece.color).toBe("black");
+      expect(attack.from).toEqual({ file: 4, rank: 3 });
+      expect(attack.to).toEqual({ file: 3, rank: 4 });
+    }
   });
 
   it("uses an L-shaped path for knights", () => {
