@@ -186,12 +186,15 @@ export async function playMeleeDuel(options: {
   const origin = fromBtn.getBoundingClientRect();
   const layer = root.querySelector<HTMLElement>(".piece-layer");
   if (layer) layer.style.visibility = "hidden";
+  root.querySelectorAll(".sq.legal, .sq.selected, .sq.capture").forEach((el) => {
+    el.classList.remove("legal", "selected", "capture");
+  });
 
   const attackerOnLeft = origin.left <= dest.left;
-  const gap = dest.width * 0.22;
-  const fightLeftA = dest.left + (attackerOnLeft ? -gap : dest.width * 0.12);
-  const fightLeftD = dest.left + (attackerOnLeft ? dest.width * 0.12 : -gap);
-  const fightTop = dest.top - dest.height * 0.12;
+  const gap = dest.width * 0.85;
+  const fightLeftA = dest.left + (attackerOnLeft ? -gap : dest.width * 0.55);
+  const fightLeftD = dest.left + (attackerOnLeft ? dest.width * 0.55 : -gap);
+  const fightTop = dest.top - dest.height * 0.18;
   const attackerEl = mountFighter(attacker, dest, {
     left: origin.left,
     top: origin.top,
