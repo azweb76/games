@@ -13,18 +13,32 @@ function hpBar(piece: Piece, pct = 100): string {
   return `<span class="piece-hp"><span style="width:${width}%"></span></span>`;
 }
 
+const FIGHTER_SCALE = 1.28;
+
+function fighterOrigin(square: DOMRect, left: number, top: number): { left: number; top: number; width: number; height: number } {
+  const width = square.width * FIGHTER_SCALE;
+  const height = square.height * FIGHTER_SCALE;
+  return {
+    width,
+    height,
+    left: left - (width - square.width) / 2,
+    top: top - (height - square.height) * 0.72,
+  };
+}
+
 function mountFighter(
   piece: Piece,
   box: DOMRect,
   extras: { left: number; top: number; facing: "left" | "right" },
 ): HTMLDivElement {
+  const placed = fighterOrigin(box, extras.left, extras.top);
   const flyer = document.createElement("div");
   flyer.className = `actor flyer melee-fighter face-${extras.facing}`;
   flyer.style.position = "fixed";
-  flyer.style.left = `${extras.left}px`;
-  flyer.style.top = `${extras.top}px`;
-  flyer.style.width = `${box.width}px`;
-  flyer.style.height = `${box.height}px`;
+  flyer.style.left = `${placed.left}px`;
+  flyer.style.top = `${placed.top}px`;
+  flyer.style.width = `${placed.width}px`;
+  flyer.style.height = `${placed.height}px`;
   flyer.style.zIndex = "9999";
   flyer.style.pointerEvents = "none";
   flyer.innerHTML = pieceFigureHtml(piece, { hp: hpBar(piece, 100) });
@@ -104,10 +118,11 @@ function setHp(el: HTMLElement, pct: number): void {
   if (bar) bar.style.width = `${Math.max(0, pct)}%`;
 }
 
-function slideTo(el: HTMLElement, left: number, top: number, ms: number): void {
+function slideTo(el: HTMLElement, square: DOMRect, left: number, top: number, ms: number): void {
+  const placed = fighterOrigin(square, left, top);
   el.style.transition = `left ${ms}ms ease-in-out, top ${ms}ms ease-in-out`;
-  el.style.left = `${left}px`;
-  el.style.top = `${top}px`;
+  el.style.left = `${placed.left}px`;
+  el.style.top = `${placed.top}px`;
 }
 
 async function playSwing(options: {
@@ -133,18 +148,18 @@ async function playSwing(options: {
   let burst: HTMLElement | null = null;
   if (kind === "magic") {
     fx = castBolt(actor, foe);
-    await sleep(700);
+    await sleep(780);
     setPose(foe, "struck");
     burst = burstAt(dest, true);
   } else {
     fx = sparkArc(dest, fromLeft, kind);
-    await sleep(520);
+    await sleep(640);
     setPose(foe, lethal ? "struck" : "parrying");
     burst = burstAt(dest, false);
   }
   const nextHp = lethal ? 0 : Math.max(8, options.foeHp - (kind === "magic" ? 38 : 28));
   setHp(foe, nextHp);
-  await sleep(lethal ? 900 : 780);
+  await sleep(lethal ? 1400 : 1250);
   fx.remove();
   burst.remove();
   label.remove();
@@ -169,9 +184,8 @@ export async function playMeleeDuel(options: {
   }
   const dest = destBtn.getBoundingClientRect();
   const origin = fromBtn.getBoundingClientRect();
-  root.querySelectorAll<HTMLElement>(`[data-actor="${attacker.id}"], [data-actor="${defender.id}"]`).forEach((node) => {
-    node.style.visibility = "hidden";
-  });
+  const layer = root.querySelector<HTMLElement>(".piece-layer");
+  if (layer) layer.style.visibility = "hidden";
 
   const attackerOnLeft = origin.left <= dest.left;
   const gap = dest.width * 0.22;
@@ -194,12 +208,12 @@ export async function playMeleeDuel(options: {
   if (banner) banner.textContent = `${attacker.color} ${attacker.type} closes in with ${weapon}…`;
 
   setPose(attackerEl, "walking");
-  slideTo(attackerEl, fightLeftA, fightTop, 720);
-  slideTo(defenderEl, fightLeftD, fightTop, 480);
-  await sleep(780);
+  slideTo(attackerEl, dest, fightLeftA, fightTop, 900);
+  slideTo(defenderEl, dest, fightLeftD, fightTop, 640);
+  await sleep(980);
   setPose(attackerEl, "idle");
   setPose(defenderEl, "idle");
-  await sleep(420);
+  await sleep(650);
 
   const rng = seedFightRng(attacker, defender);
   const attackerName = `${attacker.color} ${attacker.type}`;
@@ -242,7 +256,7 @@ export async function playMeleeDuel(options: {
     name: attackerName,
   });
 
-  await sleep(360);
+  await sleep(520);
   const killKind = pickAttack(rng, attacker.type);
   await playSwing({
     actor: attackerEl,
@@ -259,15 +273,16 @@ export async function playMeleeDuel(options: {
   setPose(defenderEl, "fallen");
   setHp(defenderEl, 0);
   if (banner) banner.textContent = `${attackerName} fells the ${defender.type}!`;
-  await sleep(1100);
+  await sleep(1500);
 
   setPose(attackerEl, "walking");
-  slideTo(attackerEl, dest.left, dest.top, 900);
-  await sleep(960);
+  slideTo(attackerEl, dest, dest.left, dest.top, 1100);
+  await sleep(1180);
   setPose(attackerEl, "victorious");
   if (banner) banner.textContent = `${attackerName} takes the square.`;
-  await sleep(700);
+  await sleep(900);
 
   attackerEl.remove();
   defenderEl.remove();
+  if (layer) layer.style.visibility = "";
 }
